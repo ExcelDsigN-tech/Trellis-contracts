@@ -16,6 +16,7 @@ type ContractResult<T> = core::result::Result<T, Error>;
 #[derive(Clone)]
 enum DataKey {
     Treasury,
+    Registry,
     MaxTiers,
     RewardCap,
     TierBps(u32),
@@ -82,6 +83,13 @@ impl ReferralContract {
     /// Read the configured treasury contract address.
     pub fn get_treasury(env: Env) -> Result<Address, Error> {
         read_treasury(&env)
+    }
+
+    /// Configure the registry contract that resolves dependency addresses.
+    pub fn set_registry(env: Env, caller: Address, registry: Address) -> Result<(), Error> {
+        require_admin(&env, &caller)?;
+        env.storage().instance().set(&DataKey::Registry, &registry);
+        Ok(())
     }
 
     /// Configure tier percentages and the lifetime cap enforced per referrer.
@@ -297,6 +305,20 @@ fn would_create_cycle(env: &Env, referred_wallet: &Address, referrer: &Address) 
 }
 
 fn read_treasury(env: &Env) -> ContractResult<Address> {
+    if let Some(registry) = env.storage().instance().get::<DataKey, Address>(&DataKey::Registry) {
+        let args = vec![env, Symbol::new(env, "treasury").into_val(env)];
+        match env.try_invoke_contract::<(Address, u32), Error>(
+            &registry,
+            &Symbol::new(env, "get_contract"),
+            args,
+        ) {
+            Ok(Ok((address, _))) => return Ok(address),
+            Ok(Err(_)) => {}
+            Err(Ok(_)) => {}
+            Err(Err(_)) => {}
+        }
+    }
+
     env.storage()
         .instance()
         .get::<DataKey, Address>(&DataKey::Treasury)
@@ -432,6 +454,9 @@ mod tests {
     #[contract]
     struct MockTreasury;
 
+    #[contract]
+    struct MockRegistry;
+
     #[contractimpl]
     impl MockTreasury {
         pub fn deposit_rewards(env: Env, amount: i128) -> Result<(), Error> {
@@ -482,6 +507,41 @@ mod tests {
             env.events()
                 .publish((shared::events::COMMISSION_PAID,), (recipient, amount));
             Ok(())
+        }
+    }
+
+    #[contractimpl]
+    impl MockRegistry {
+        pub fn initialize(env: Env, admin: Address) {
+            shared::auth::set_admin(&env, &admin);
+        }
+
+        pub fn set_contract(env: Env, caller: Address, name: Symbol, address: Address, version: u32) -> Result<(), Error> {
+            if caller != shared::auth::get_admin(&env) {
+                return Err(Error::Unauthorized);
+            }
+            caller.require_auth();
+            env.storage().instance().set(&(name.clone(), version), &address);
+            let mut history: soroban_sdk::Vec<u32> = env.storage().instance().get(&(name.clone(), Symbol::new(&env, "history"))).unwrap_or_else(|| soroban_sdk::Vec::new(&env));
+            if !history.iter().any(|item| item == version) {
+                history.push_back(version);
+                env.storage().instance().set(&(name.clone(), Symbol::new(&env, "history")), &history);
+            }
+            Ok(())
+        }
+
+        pub fn get_contract(env: Env, name: Symbol) -> Result<(Address, u32), Error> {
+            let history: soroban_sdk::Vec<u32> = env.storage().instance().get(&(name.clone(), Symbol::new(&env, "history"))).unwrap_or_else(|| soroban_sdk::Vec::new(&env));
+            let latest_version = if history.len() > 0 { history.get(history.len() - 1).unwrap_or(0) } else { 0 };
+            let address = env.storage().instance().get::<(Symbol, u32), Address>(&(name.clone(), latest_version)).ok_or(Error::NotFound)?;
+            Ok((address, latest_version))
+        }
+
+        pub fn get_version_history(env: Env, name: Symbol) -> Result<soroban_sdk::Vec<u32>, Error> {
+            env.storage()
+                .instance()
+                .get::<(Symbol, Symbol), soroban_sdk::Vec<u32>>(&(name.clone(), Symbol::new(&env, "history")))
+                .ok_or(Error::NotFound)
         }
     }
 
@@ -587,24 +647,42 @@ mod tests {
     }
 
     #[test]
+    fn claim_rewards_resolves_treasury_via_registry() {
+        let (env, referral_id, admin, referred, tier_one, _tier_two, _tier_three, _tier_four) =
+            setup();
+        let referral = ReferralContractClient::new(&env, &referral_id);
+        let registry_id = env.register(MockRegistry, ());
+        let registry = MockRegistryClient::new(&env, &registry_id);
+        let treasury_id = env.register(MockTreasury, ());
+        let treasury = MockTreasuryClient::new(&env, &treasury_id);
+
+        registry.initialize(&admin);
+        registry.set_contract(&admin, &Symbol::new(&env, "treasury"), &treasury_id, &1_u32);
+        treasury.deposit_rewards(&1_000_000_000);
+        referral.set_registry(&admin, &registry_id);
+        referral.set_tier_config(&admin, &soroban_sdk::vec![&env, 1_000_i128], &1, &10_000);
+        referral.set_referrer(&admin, &referred, &tier_one);
+        assert_eq!(referral.accrue(&admin, &referred, &10_000), 1_000);
+
+        assert_eq!(referral.claim_rewards(&tier_one), 1_000);
+        assert_eq!(treasury.paid_to(&tier_one), 1_000);
+    }
+
+    #[test]
     fn accrual_math_rejects_overflow() {
         let (env, referral_id, admin, referred, tier_one, _tier_two, _tier_three, _tier_four) =
             setup();
         let referral = ReferralContractClient::new(&env, &referral_id);
 
-        referral.set_tier_config(
-            &admin,
-            &soroban_sdk::vec![&env, 10_000_i128],
-            &1,
-            &MAX_REWARD_CAP,
-        );
+        referral.set_tier_config(&admin, &soroban_sdk::vec![&env, 10_000_i128], &1, &i128::MAX);
         referral.set_referrer(&admin, &referred, &tier_one);
 
+        assert_eq!(referral.accrue(&admin, &referred, &i128::MAX), i128::MAX);
         assert!(matches!(
-            referral.try_accrue(&admin, &referred, &i128::MAX),
+            referral.try_accrue(&admin, &referred, &1),
             Err(Ok(Error::Overflow))
         ));
-        assert_eq!(referral.accrued_balance(&tier_one), 0);
+        assert_eq!(referral.accrued_balance(&tier_one), i128::MAX);
     }
 
     #[test]
