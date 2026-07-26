@@ -8,6 +8,7 @@ members = [
     "contracts/oracle-contract",
     "contracts/registry-contract",
     "shared",
+    "contracts/rebalancer-contract",
 ]
 
 [workspace.dependencies]
