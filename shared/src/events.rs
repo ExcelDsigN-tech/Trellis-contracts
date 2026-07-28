@@ -17,6 +17,7 @@ pub const PARAMETER_CHANGED: Symbol = symbol_short!("param_chg");
 pub const CONTRACT_PAUSED: Symbol = symbol_short!("paused");
 pub const CONTRACT_RESUMED: Symbol = symbol_short!("resumed");
 pub const CONTRACT_UPGRADED: Symbol = symbol_short!("upgraded");
+pub const REFERRAL_REGISTERED: Symbol = symbol_short!("ref_reg");
 
 /// Emit an event with a single data value.
 pub fn emit<T: soroban_sdk::IntoVal<Env, soroban_sdk::Val>>(env: &Env, topic: Symbol, data: T) {
