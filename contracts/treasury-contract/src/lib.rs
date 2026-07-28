@@ -4,7 +4,7 @@ use soroban_sdk::{contract, contractimpl, symbol_short, Address, Env, Symbol};
 
 use shared::auth::{self, Role};
 use shared::errors::Error;
-use shared::events::{self, TREASURY_WITHDRAW};
+use shared::events::{self, emit_commission_paid, emit_treasury_deposit, emit_treasury_withdrawal};
 use shared::storage::{instance_get, instance_set, persistent_set};
 
 /// Storage key prefix for per-category balances; the full key is
@@ -14,6 +14,12 @@ const BALANCE: Symbol = symbol_short!("cat_bal");
 const MAX_WD: Symbol = symbol_short!("max_wd");
 /// Category symbol for the emergency reserve (used by `emergency_withdraw`).
 const RESERVE_CATEGORY: Symbol = symbol_short!("reserve");
+/// Category symbol for the referral commission rewards pool (used by
+/// `distribute_reward`).
+const REWARDS_CATEGORY: Symbol = symbol_short!("rewards");
+/// Storage key for the referral contract address authorised to call
+/// `distribute_reward`.
+const REFERRAL_CONTRACT: Symbol = symbol_short!("ref_ctr");
 
 #[contract]
 pub struct TreasuryContract;
@@ -66,10 +72,11 @@ impl TreasuryContract {
         if amount <= 0 {
             return Err(Error::InvalidArgument);
         }
-        let key = (BALANCE, category);
-        let balance: i128 = instance_get(&env, &key).unwrap_or(0);
+        let key = (BALANCE, category.clone());
+        let balance: i128 = env.storage().instance().get(&key).unwrap_or(0);
         let new_balance = balance.checked_add(amount).ok_or(Error::Overflow)?;
-        instance_set(&env, &key, &new_balance);
+        env.storage().instance().set(&key, &new_balance);
+        emit_treasury_deposit(&env, category, &caller, amount, new_balance);
         Ok(())
     }
 
@@ -91,7 +98,8 @@ impl TreasuryContract {
     /// 3. `amount` must not exceed the withdrawal limit  → `Error::WithdrawalLimitExceeded`
     /// 4. `amount` must not exceed the category balance  → `Error::InsufficientBalance`
     ///
-    /// On success, decrements the category balance and emits `TREASURY_WITHDRAW`.
+    /// On success, decrements the category balance and emits the shared
+    /// `TreasuryWithdrawal` event with `(category, to, amount, remaining)`.
     pub fn withdraw(
         env: Env,
         caller: Address,
@@ -119,7 +127,12 @@ impl TreasuryContract {
         let remaining = balance - amount;
         instance_set(&env, &key, &remaining);
 
-        events::emit(&env, TREASURY_WITHDRAW, (category, to, amount, remaining));
+        // NOTE: as with the rest of this contract, balances here are
+        // internal accounting only. If this treasury custodies a live
+        // SAC/token, wire a `token::Client::transfer(&to, &amount)` call
+        // here (before the event emit) using a stored token address.
+        emit_treasury_withdrawal(&env, category, &to, amount, remaining);
+
         Ok(())
     }
 
@@ -161,6 +174,62 @@ impl TreasuryContract {
             events::TREASURY_EMERGENCY_WITHDRAW,
             (caller, to, amount),
         );
+        Ok(())
+    }
+
+    /// Registers the referral contract address authorised to call
+    /// `distribute_reward`. Admin only.
+    pub fn set_referral_contract(
+        env: Env,
+        caller: Address,
+        referral_contract: Address,
+    ) -> Result<(), Error> {
+        auth::require_admin(&env, &caller)?;
+        instance_set(&env, &REFERRAL_CONTRACT, &referral_contract);
+        Ok(())
+    }
+
+    /// Returns the currently registered referral contract address, if any.
+    pub fn referral_contract(env: Env) -> Option<Address> {
+        instance_get(&env, &REFERRAL_CONTRACT)
+    }
+
+    /// Pays a referral commission of `amount` to `recipient` from the
+    /// `Rewards` category.
+    ///
+    /// Callable only by the registered referral contract. There is no
+    /// explicit `caller` argument: authorisation relies on Soroban's
+    /// invoker-contract mechanism, under which an address that is itself a
+    /// contract is automatically authorised for calls it makes directly —
+    /// so this succeeds only when the registered referral contract is the
+    /// direct caller.
+    ///
+    /// # Errors
+    /// - `Error::Unauthorized`        — no referral contract is registered,
+    ///   or the direct caller is not it.
+    /// - `Error::InvalidArgument`     — `amount` is not strictly positive.
+    /// - `Error::InsufficientBalance` — the Rewards balance can't cover
+    ///   `amount`.
+    pub fn distribute_reward(env: Env, recipient: Address, amount: i128) -> Result<(), Error> {
+        let referral_contract: Address =
+            instance_get(&env, &REFERRAL_CONTRACT).ok_or(Error::Unauthorized)?;
+        referral_contract.require_auth();
+
+        if amount <= 0 {
+            return Err(Error::InvalidArgument);
+        }
+
+        let key = (BALANCE, REWARDS_CATEGORY);
+        let balance: i128 = instance_get(&env, &key).unwrap_or(0);
+        if amount > balance {
+            return Err(Error::InsufficientBalance);
+        }
+
+        let remaining = balance - amount;
+        instance_set(&env, &key, &remaining);
+
+        emit_commission_paid(&env, &recipient, amount, env.ledger().timestamp());
+
         Ok(())
     }
 }

@@ -1,6 +1,22 @@
-#![no_std]
+use soroban_sdk::{
+    contract, contractimpl, panic_with_error, token, Address, Env, Symbol, Map, BytesN,
+};
+use shared::{emit_aid_created, emit, AID_CREATED, Error, auth};
 
-use soroban_sdk::{contract, contractimpl, contracterror, token, Address, Env};
+/// Storage keys
+const KEY_TOKEN: Symbol = Symbol::new("token");
+const KEY_AID_COUNTER: Symbol = Symbol::new("aid_cnt");
+const KEY_AIDS: Symbol = Symbol::new("aids");
+
+/// Aid status enum
+#[derive(Debug, Clone, PartialEq, Eq, Copy)]
+#[repr(u32)]
+pub enum AidStatus {
+    Created = 0,
+    Claimed = 1,
+    Settled = 2,
+    Refunded = 3,
+}
 
 use shared::{emit, AID_CLAIMED, AID_CREATED, AID_REFUNDED, AID_SETTLED};
 use shared::storage::{is_paused, set_paused as shared_set_paused};
@@ -102,11 +118,24 @@ impl AidContract {
         };
         set_aid(&env, aid_id, &record);
 
-        // Track the highest used id so auto-increment helpers work.
-        let counter = get_aid_counter(&env);
-        if aid_id > counter {
-            set_aid_counter(&env, aid_id);
-        }
+        // Store the aid record in a persistent map of aid_id -> AidRecord
+        let mut aids: Map<u64, AidRecord> = env.storage()
+            .persistent()
+            .get(&KEY_AIDS)
+            .unwrap_or_else(|| Map::new(&env));
+        aids.insert(aid_id, aid_record);
+        env.storage().persistent().set(&KEY_AIDS, &aids);
+
+        // Emit the AidCreated event
+        emit_aid_created(
+            &env,
+            aid_id,
+            &donor,
+            &recipient,
+            amount,
+            current_time,
+            expiry,
+        );
 
         emit(&env, AID_CREATED, (aid_id, donor, recipient, amount, expiry_ledger));
         aid_id
@@ -203,6 +232,129 @@ impl AidContract {
         storage::get_aid(&env, aid_id)
     }
 
+    /// Refund an expired and unclaimed aid to the donor.
+    pub fn refund_aid(env: Env, aid_id: u64) {
+        // Ensure the caller is authorized (donor or admin)
+        let aid = Self::get_aid(env.clone(), aid_id);
+        if aid.donor != auth::get_invoker_address(&env) && !auth::is_admin(&env) {
+            panic_with_error!(env, Error::Unauthorized);
+        }
+
+        // Verify that the aid has expired
+        if env.ledger().timestamp() < aid.expiry {
+            panic_with_error!(env, Error::NotExpiredYet);
+        }
+
+        // Verify that the aid is in a refundable state (Created)
+        if aid.status != AidStatus::Created as u32 {
+            panic_with_error!(env, Error::AlreadyRefunded);
+        }
+
+        // Update the aid status to Refunded
+        let mut updated_aid = aid.clone();
+        updated_aid.status = AidStatus::Refunded as u32;
+
+        // Transfer the funds back to the donor
+        let token = Self::get_token(env.clone());
+        let token_client = token::Client::new(&env, &token);
+        token_client.transfer(
+            &env.current_contract_address(),
+            &aid.donor,
+            &aid.amount,
+        );
+
+        // Update the aid record in storage
+        let mut aids: Map<u64, AidRecord> = env
+            .storage()
+            .persistent()
+            .get(&KEY_AIDS)
+            .expect("no aid records found");
+        aids.insert(aid_id, updated_aid);
+        env.storage().persistent().set(&KEY_AIDS, &aids);
+
+        // Emit the AidRefunded event
+        emit(
+            &env,
+            Symbol::new("aid_refunded"),
+            (aid_id, aid.donor, aid.amount),
+        );
+    }
+
+    /// Claim an aid, transferring the escrowed funds to the recipient.
+    pub fn claim_aid(env: Env, aid_id: u64, recipient: Address) {
+        // Ensure the caller is the intended recipient
+        recipient.require_auth();
+
+        // Check if the contract is paused
+        if env.storage().instance().get(&Symbol::new("paused")).unwrap_or(false) {
+            panic_with_error!(env, Error::Paused);
+        }
+
+        let mut aid = Self::get_aid(env.clone(), aid_id);
+
+        // Verify that the caller is the recipient
+        if aid.recipient != recipient {
+            panic_with_error!(env, Error::Unauthorized);
+        }
+
+        // Verify that the aid has not expired
+        if env.ledger().timestamp() >= aid.expiry {
+            panic_with_error!(env, Error::Expired);
+        }
+
+        // Verify that the aid is in a claimable state
+        if aid.status != AidStatus::Created as u32 {
+            panic_with_error!(env, Error::AlreadyClaimed);
+        }
+
+        // Update the aid status to Claimed
+        aid.status = AidStatus::Claimed as u32;
+
+        // Transfer the funds to the recipient
+        let token = Self::get_token(env.clone());
+        let token_client = token::Client::new(&env, &token);
+        token_client.transfer(
+            &env.current_contract_address(),
+            &recipient,
+            &aid.amount,
+        );
+
+        // Update the aid status to Settled
+        aid.status = AidStatus::Settled as u32;
+
+        // Update the aid record in storage
+        let mut aids: Map<u64, AidRecord> = env
+            .storage()
+            .persistent()
+            .get(&KEY_AIDS)
+            .expect("no aid records found");
+        aids.insert(aid_id, aid.clone());
+        env.storage().persistent().set(&KEY_AIDS, &aids);
+
+        // Emit the AidClaimed and AidSettled events
+        emit(
+            &env,
+            Symbol::new("aid_claimed"),
+            (aid_id, recipient.clone()),
+        );
+        emit(
+            &env,
+            Symbol::new("aid_settled"),
+            (aid_id, recipient, aid.amount),
+        );
+    }
+
+    /// Set the paused state of the contract.
+    pub fn set_paused(env: Env, admin: Address, paused: bool) {
+        let contract_admin = shared::auth::get_admin(&env);
+        if admin != contract_admin {
+             panic_with_error!(env, Error::Unauthorized);
+        }
+        admin.require_auth();
+
+        env.storage().instance().set(&Symbol::new("paused"), &paused);
+    }
+}
     // -----------------------------------------------------------------------
     // Admin controls
     // -----------------------------------------------------------------------
