@@ -3,6 +3,7 @@
 use soroban_sdk::{contract, contractimpl, contracttype, vec, Address, Env, IntoVal, Symbol};
 
 use shared::errors::Error;
+use shared::storage::{persistent_get, persistent_set};
 
 const MAX_SUPPORTED_TIERS: u32 = 10;
 const MIN_REWARD_CAP: i128 = 0;
@@ -21,6 +22,7 @@ enum DataKey {
     RewardCap,
     TierBps(u32),
     Referrer(Address),
+    ReferralRecord(Address),
     Accrued(Address),
     LifetimeAccrued(Address),
 }
@@ -35,8 +37,24 @@ pub struct TierConfig {
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReferralRecord {
+    pub wallet: Address,
+    pub referrer: Address,
+    pub commission: i128,
+    pub tier: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ReferrerSetEvent {
     pub referred_wallet: Address,
+    pub referrer: Address,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReferralRegisteredEvent {
+    pub wallet: Address,
     pub referrer: Address,
 }
 
@@ -171,6 +189,72 @@ impl ReferralContract {
     /// Read a wallet's direct referrer, if one has been registered.
     pub fn get_referrer(env: Env, wallet: Address) -> Option<Address> {
         read_referrer(&env, &wallet)
+    }
+
+    /// Register a wallet under an existing referrer in the referral graph.
+    ///
+    /// The caller (`wallet`) authorises their own registration. The referrer
+    /// must already exist in the graph (have been registered or bootstrapped
+    /// via `set_referrer`). Self-referral, duplicate registration, and
+    /// cycles are rejected.
+    pub fn register(
+        env: Env,
+        wallet: Address,
+        referrer: Address,
+    ) -> Result<(), Error> {
+        wallet.require_auth();
+
+        // Prevent self-referral.
+        if wallet == referrer {
+            return Err(Error::InvalidArgument);
+        }
+
+        // Prevent duplicate registration — wallet already has a referrer.
+        if read_referrer(&env, &wallet).is_some() {
+            return Err(Error::InvalidArgument);
+        }
+
+        // Referrer must already exist in the graph.
+        if read_referrer(&env, &referrer).is_none() {
+            return Err(Error::InvalidArgument);
+        }
+
+        // Prevent referral cycles.
+        if would_create_cycle(&env, &wallet, &referrer) {
+            return Err(Error::InvalidArgument);
+        }
+
+        // Store the edge in instance storage (for accrue / cycle detection).
+        env.storage()
+            .instance()
+            .set(&DataKey::Referrer(wallet.clone()), &referrer);
+
+        // Store the full referral record in persistent storage.
+        let record = ReferralRecord {
+            wallet: wallet.clone(),
+            referrer: referrer.clone(),
+            commission: 0,
+            tier: 0,
+        };
+        persistent_set(
+            &env,
+            &DataKey::ReferralRecord(wallet.clone()),
+            &record,
+        );
+
+        env.events().publish(
+            (shared::events::REFERRAL_REGISTERED,),
+            ReferralRegisteredEvent {
+                wallet: wallet.clone(),
+                referrer: referrer.clone(),
+            },
+        );
+        Ok(())
+    }
+
+    /// Return the full referral record for a wallet, if registered.
+    pub fn get_referral_record(env: Env, wallet: Address) -> Option<ReferralRecord> {
+        read_referral_record(&env, &wallet)
     }
 
     /// Accrue referral rewards for a referred wallet and base transaction amount.
@@ -350,6 +434,10 @@ fn read_referrer(env: &Env, wallet: &Address) -> Option<Address> {
     env.storage()
         .instance()
         .get::<DataKey, Address>(&DataKey::Referrer(wallet.clone()))
+}
+
+fn read_referral_record(env: &Env, wallet: &Address) -> Option<ReferralRecord> {
+    persistent_get(env, &DataKey::ReferralRecord(wallet.clone()))
 }
 
 fn read_accrued(env: &Env, referrer: &Address) -> i128 {
@@ -721,5 +809,122 @@ mod tests {
             referral.try_set_referrer(&admin, &tier_two, &referred),
             Err(Ok(Error::InvalidArgument))
         ));
+    }
+
+    // -----------------------------------------------------------------------
+    // register() tests
+    // -----------------------------------------------------------------------
+
+    /// Helper that bootstraps the referral graph via admin `set_referrer` so
+    /// that `register` has an existing referrer to validate against.
+    fn bootstrap_root(
+        env: &Env,
+        referral_id: &Address,
+        admin: &Address,
+        root: &Address,
+        root_referrer: &Address,
+    ) {
+        let referral = ReferralContractClient::new(env, referral_id);
+        referral.set_referrer(admin, root, root_referrer);
+    }
+
+    #[test]
+    fn register_succeeds_with_valid_referrer_and_record_is_queryable() {
+        let (env, referral_id, admin, _referred, tier_one, tier_two, _tier_three, _tier_four) =
+            setup();
+        let referral = ReferralContractClient::new(&env, &referral_id);
+
+        // Bootstrap: admin makes tier_one exist under tier_two.
+        bootstrap_root(&env, &referral_id, &admin, &tier_one, &tier_two);
+
+        // Now a new wallet registers under tier_one.
+        let wallet = Address::generate(&env);
+        referral.register(&wallet, &tier_one);
+
+        // Edge is queryable.
+        assert_eq!(referral.get_referrer(&wallet), Some(tier_one.clone()));
+
+        // Full record is queryable.
+        let record = referral.get_referral_record(&wallet).unwrap();
+        assert_eq!(record.wallet, wallet);
+        assert_eq!(record.referrer, tier_one);
+        assert_eq!(record.commission, 0);
+        assert_eq!(record.tier, 0);
+    }
+
+    #[test]
+    fn register_rejects_self_referral() {
+        let (env, referral_id, admin, _referred, tier_one, tier_two, _tier_three, _tier_four) =
+            setup();
+        let referral = ReferralContractClient::new(&env, &referral_id);
+
+        // Bootstrap: tier_one exists in the graph.
+        bootstrap_root(&env, &referral_id, &admin, &tier_one, &tier_two);
+
+        // Self-referral must fail.
+        assert!(matches!(
+            referral.try_register(&tier_one, &tier_one),
+            Err(Ok(Error::InvalidArgument))
+        ));
+    }
+
+    #[test]
+    fn register_rejects_duplicate() {
+        let (env, referral_id, admin, _referred, tier_one, tier_two, _tier_three, _tier_four) =
+            setup();
+        let referral = ReferralContractClient::new(&env, &referral_id);
+
+        // Bootstrap.
+        bootstrap_root(&env, &referral_id, &admin, &tier_one, &tier_two);
+
+        let wallet = Address::generate(&env);
+        referral.register(&wallet, &tier_one);
+
+        // Duplicate registration must fail.
+        assert!(matches!(
+            referral.try_register(&wallet, &tier_one),
+            Err(Ok(Error::InvalidArgument))
+        ));
+    }
+
+    #[test]
+    fn register_rejects_nonexistent_referrer() {
+        let (env, referral_id, admin, _referred, tier_one, tier_two, _tier_three, _tier_four) =
+            setup();
+        let referral = ReferralContractClient::new(&env, &referral_id);
+
+        // Bootstrap: tier_one exists.
+        bootstrap_root(&env, &referral_id, &admin, &tier_one, &tier_two);
+
+        let wallet = Address::generate(&env);
+        let nonexistent = Address::generate(&env);
+
+        // Referrer that was never registered must be rejected.
+        assert!(matches!(
+            referral.try_register(&wallet, &nonexistent),
+            Err(Ok(Error::InvalidArgument))
+        ));
+    }
+
+    #[test]
+    fn register_allows_chain_extension_without_cycle() {
+        let (env, referral_id, admin, _referred, tier_one, tier_two, _tier_three, _tier_four) =
+            setup();
+        let referral = ReferralContractClient::new(&env, &referral_id);
+
+        // Bootstrap a chain: a → b (via admin set_referrer).
+        let a = Address::generate(&env);
+        let b = Address::generate(&env);
+        referral.set_referrer(&admin, &a, &b);
+
+        // Register a fresh wallet under a — this is fine, no cycle.
+        let w = Address::generate(&env);
+        referral.register(&w, &a);
+        assert_eq!(referral.get_referrer(&w), Some(a.clone()));
+
+        // Register another wallet under w — also fine, w → a → b (no cycle).
+        let w2 = Address::generate(&env);
+        referral.register(&w2, &w);
+        assert_eq!(referral.get_referrer(&w2), Some(w.clone()));
     }
 }
