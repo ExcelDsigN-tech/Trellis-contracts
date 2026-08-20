@@ -15,6 +15,8 @@ pub use events::{
     CONTRACT_PAUSED, CONTRACT_RESUMED, CONTRACT_UPGRADED, PARAMETER_CHANGED,
     REFERRAL_ACCRUED, REFERRAL_REGISTERED, REFERRER_SET, TIER_CONFIG_SET, TREASURY_DEPOSIT,
     TREASURY_EMERGENCY_WITHDRAW, TREASURY_SET, TREASURY_WITHDRAW,
+    ActionExecutedEvent, emit_action_executed, emit_module_initialized, emit_permission_changed,
+    ModuleInitializedEvent, PermissionChangedEvent,
 };
 pub use storage::{
     instance_get, instance_has, instance_remove, instance_set,

@@ -1,8 +1,9 @@
 #![no_std]
 
-use soroban_sdk::{contract, contractimpl, contracttype, Address, Env};
+use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, Env};
 
 use shared::errors::Error;
+use shared::events::{emit_action_executed, emit_module_initialized};
 
 const MIN_AID_DEFAULT_EXPIRY: i128 = 60;
 const MAX_AID_DEFAULT_EXPIRY: i128 = 31_536_000;
@@ -67,6 +68,7 @@ impl GovernanceContract {
     pub fn initialize(env: Env, admin: Address) {
         shared::auth::set_admin(&env, &admin);
         seed_defaults(&env);
+        emit_module_initialized(&env, symbol_short!("gov"), 1, &admin, env.ledger().timestamp());
     }
 
     /// Update a protocol parameter. This repository does not yet contain
@@ -84,6 +86,7 @@ impl GovernanceContract {
             (shared::events::PARAMETER_CHANGED,),
             ParameterChangedEvent { key, value },
         );
+        emit_action_executed(&env, symbol_short!("gov"), symbol_short!("set_param"), &caller, true, env.ledger().timestamp());
         Ok(())
     }
 

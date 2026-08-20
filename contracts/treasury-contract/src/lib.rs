@@ -4,7 +4,10 @@ use soroban_sdk::{contract, contractimpl, symbol_short, Address, Env, Symbol};
 
 use shared::auth::{self, Role};
 use shared::errors::Error;
-use shared::events::{self, emit_commission_paid, emit_treasury_deposit, emit_treasury_withdrawal};
+use shared::events::{
+    self, emit_action_executed, emit_commission_paid, emit_module_initialized,
+    emit_permission_changed, emit_treasury_deposit, emit_treasury_withdrawal,
+};
 use shared::storage::{instance_get, instance_set, persistent_set};
 
 /// Storage key prefix for per-category balances; the full key is
@@ -34,26 +37,28 @@ impl TreasuryContract {
             return Err(Error::InvalidArgument);
         }
         auth::set_admin(&env, &admin);
-        // Grant the admin the TreasuryManager role immediately after
-        // initialisation so routine operations do not need a separate call.
-        // Written via persistent_set so the entry gets a TTL bump.
         persistent_set(
             &env,
             &shared::auth::DataKey::Role(admin.clone(), Role::TreasuryManager),
             &true,
         );
         instance_set(&env, &MAX_WD, &max_withdrawal_limit);
+        emit_module_initialized(&env, symbol_short!("treasury"), 1, &admin, env.ledger().timestamp());
         Ok(())
     }
 
     /// Grants the `TreasuryManager` role to `who`. Admin only.
     pub fn add_treasury_manager(env: Env, caller: Address, who: Address) -> Result<(), Error> {
-        auth::grant_role(&env, &caller, &who, Role::TreasuryManager)
+        auth::grant_role(&env, &caller, &who, Role::TreasuryManager)?;
+        emit_permission_changed(&env, symbol_short!("treasury"), symbol_short!("manager"), &who, true, env.ledger().timestamp());
+        Ok(())
     }
 
     /// Revokes the `TreasuryManager` role from `who`. Admin only.
     pub fn remove_treasury_manager(env: Env, caller: Address, who: Address) -> Result<(), Error> {
-        auth::revoke_role(&env, &caller, &who, Role::TreasuryManager)
+        auth::revoke_role(&env, &caller, &who, Role::TreasuryManager)?;
+        emit_permission_changed(&env, symbol_short!("treasury"), symbol_short!("manager"), &who, false, env.ledger().timestamp());
+        Ok(())
     }
 
     /// Updates the max per-transaction withdrawal limit. Admin only.
@@ -63,6 +68,7 @@ impl TreasuryContract {
             return Err(Error::InvalidArgument);
         }
         instance_set(&env, &MAX_WD, &new_limit);
+        emit_action_executed(&env, symbol_short!("treasury"), symbol_short!("wd_limit"), &caller, true, env.ledger().timestamp());
         Ok(())
     }
 
@@ -77,6 +83,7 @@ impl TreasuryContract {
         let new_balance = balance.checked_add(amount).ok_or(Error::Overflow)?;
         env.storage().instance().set(&key, &new_balance);
         emit_treasury_deposit(&env, category, &caller, amount, new_balance);
+        emit_action_executed(&env, symbol_short!("treasury"), symbol_short!("deposit"), &caller, true, env.ledger().timestamp());
         Ok(())
     }
 
@@ -127,11 +134,8 @@ impl TreasuryContract {
         let remaining = balance - amount;
         instance_set(&env, &key, &remaining);
 
-        // NOTE: as with the rest of this contract, balances here are
-        // internal accounting only. If this treasury custodies a live
-        // SAC/token, wire a `token::Client::transfer(&to, &amount)` call
-        // here (before the event emit) using a stored token address.
         emit_treasury_withdrawal(&env, category, &to, amount, remaining);
+        emit_action_executed(&env, symbol_short!("treasury"), symbol_short!("withdraw"), &caller, true, env.ledger().timestamp());
 
         Ok(())
     }
@@ -172,8 +176,9 @@ impl TreasuryContract {
         events::emit(
             &env,
             events::TREASURY_EMERGENCY_WITHDRAW,
-            (caller, to, amount),
+            (caller.clone(), to, amount),
         );
+        emit_action_executed(&env, symbol_short!("treasury"), symbol_short!("emrg_wd"), &caller, true, env.ledger().timestamp());
         Ok(())
     }
 
@@ -186,6 +191,7 @@ impl TreasuryContract {
     ) -> Result<(), Error> {
         auth::require_admin(&env, &caller)?;
         instance_set(&env, &REFERRAL_CONTRACT, &referral_contract);
+        emit_action_executed(&env, symbol_short!("treasury"), symbol_short!("ref_ctr"), &caller, true, env.ledger().timestamp());
         Ok(())
     }
 
@@ -229,6 +235,7 @@ impl TreasuryContract {
         instance_set(&env, &key, &remaining);
 
         emit_commission_paid(&env, &recipient, amount, env.ledger().timestamp());
+        emit_action_executed(&env, symbol_short!("treasury"), symbol_short!("reward"), &recipient, true, env.ledger().timestamp());
 
         Ok(())
     }
