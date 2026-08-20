@@ -9,6 +9,7 @@ members = [
     "contracts/registry-contract",
     "shared",
     "contracts/rebalancer-contract",
+    "testing",
 ]
 
 [workspace.dependencies]
