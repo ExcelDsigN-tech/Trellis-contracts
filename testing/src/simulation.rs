@@ -6,6 +6,7 @@
 use soroban_sdk::{Env, Address, Symbol, Val, FromVal, Map};
 use core::fmt;
 use crate::helpers::*;
+use soroban_sdk::InvokeOutcome;
 
 // -----------------------------------------------------------------------------
 // Simulation Framework
