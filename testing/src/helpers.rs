@@ -114,6 +114,9 @@ impl TestEnvironment {
         let client = token::Client::new(&self.env, &contract_address);
         let asset_client = token::StellarAssetClient::new(&self.env, &contract_address);
         
+        // Mint initial supply to admin for distribution
+        asset_client.mint(&self.admin, &0);
+        
         self.contracts.set(String::from_str(&self.env, name), contract_address.clone());
         (contract_address, client, asset_client)
     }
