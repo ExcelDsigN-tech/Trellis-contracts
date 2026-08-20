@@ -6,7 +6,7 @@
 use soroban_sdk::{
     contract, contractimpl,
     testutils::{Address as _, Ledger, LedgerInfo},
-    token, Address, Env, String, Map,
+    token, Address, Env, String, Map, Symbol,
 };
 
 // -----------------------------------------------------------------------------
