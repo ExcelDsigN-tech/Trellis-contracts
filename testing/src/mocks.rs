@@ -181,15 +181,43 @@ pub fn create_mock_token(
     (token_address, client)
 }
 
+/// Mock Oracle client
+pub struct MockOracleClient<'a> {
+    env: &'a Env,
+    address: Address,
+}
+
+impl<'a> MockOracleClient<'a> {
+    pub fn new(env: &'a Env, address: &Address) -> Self {
+        Self { env, address: address.clone() }
+    }
+
+    pub fn update_price(&self, asset: &Address, price: i128, decimals: u32) {
+        self.env.invoke_contract(
+            &self.address,
+            &Symbol::new(self.env, "update_price"),
+            (asset.clone(), price, decimals),
+        );
+    }
+
+    pub fn get_price(&self, asset: &Address) -> PriceData {
+        self.env.invoke_contract(
+            &self.address,
+            &Symbol::new(self.env, "get_price"),
+            (asset.clone(),)
+        )
+    }
+}
+
 /// Create and initialize a mock oracle
-pub fn create_mock_oracle(env: &Env, admin: &Address) -> (Address, MockOracle) {
+pub fn create_mock_oracle(env: &Env, admin: &Address) -> (Address, MockOracleClient<'_>) {
     let oracle_address = env.register_contract(None, MockOracle);
     env.invoke_contract(
         &oracle_address,
         &Symbol::new(env, "initialize"),
         (admin.clone(),),
     );
-    (oracle_address, MockOracle)
+    (oracle_address, MockOracleClient::new(env, &oracle_address))
 }
 
 /// Create and initialize a mock registry
