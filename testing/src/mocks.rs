@@ -72,32 +72,9 @@ impl MockToken {
     }
 }
 
-/// Mock Token client for easy testing
-pub struct MockTokenClient<'a> {
-    env: &'a Env,
-    address: Address,
-}
-
-impl<'a> MockTokenClient<'a> {
-    pub fn new(env: &'a Env, address: &Address) -> Self {
-        Self { env, address: address.clone() }
-    }
-
-    pub fn mint(&self, to: &Address, amount: i128) {
-        self.env.invoke_contract(
-            &self.address,
-            &Symbol::new(self.env, "mint"),
-            (to.clone(), amount),
-        );
-    }
-
-    pub fn balance_of(&self, owner: &Address) -> i128 {
-        self.env.invoke_contract(
-            &self.address,
-            &Symbol::new(self.env, "balance_of"),
-            (owner.clone(),)
-        )
-    }
+/// Helper to create a token client that works with the built-in token interface
+pub fn create_token_client<'a>(env: &'a Env, address: &Address) -> token::Client<'a> {
+    token::Client::new(env, address)
 }
 
 // -----------------------------------------------------------------------------
