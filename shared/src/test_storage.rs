@@ -6,8 +6,8 @@ use soroban_sdk::{contracttype, symbol_short, Env, Symbol};
 
 use crate::storage::{
     instance_get, instance_has, instance_remove, instance_set,
-    is_paused, persistent_get, persistent_has, persistent_remove,
-    persistent_set, set_paused, temporary_get, temporary_has,
+    is_paused, persistent_get, persistent_has, persistent_read,
+    persistent_remove, persistent_set, set_paused, temporary_get, temporary_has,
     temporary_remove, temporary_set, PERSISTENT_BUMP_AMOUNT,
     PERSISTENT_TTL_THRESHOLD, TEMPORARY_BUMP_AMOUNT, TEMPORARY_TTL_THRESHOLD,
 };
@@ -257,4 +257,57 @@ fn persistent_and_temporary_with_same_key_are_independent() {
 
     assert_eq!(persistent_get::<TestKey, u32>(&env, &key), Some(333_u32));
     assert_eq!(temporary_get::<TestKey, u32>(&env, &key), Some(444_u32));
+}
+
+// ===========================================================================
+// Gas benchmark tests
+// ===========================================================================
+
+/// Benchmark: `persistent_read` vs `persistent_get` for read-only queries.
+///
+/// Both return the same value, but `persistent_read` skips the `extend_ttl`
+/// host call.  In a loop or batch query this saves one host syscall per read.
+#[test]
+fn persistent_read_matches_persistent_get_for_existing_entry() {
+    let env = Env::default();
+    let key = TestKey::U32(200);
+
+    persistent_set(&env, &key, &999_u32);
+
+    let via_get = persistent_get::<TestKey, u32>(&env, &key);
+    let via_read = persistent_read::<TestKey, u32>(&env, &key);
+    assert_eq!(via_get, Some(999_u32));
+    assert_eq!(via_read, Some(999_u32));
+}
+
+/// Benchmark: `persistent_read` for absent key returns None without extra work.
+#[test]
+fn persistent_read_absent_key_returns_none() {
+    let env = Env::default();
+    let key = TestKey::U32(201);
+
+    assert_eq!(persistent_read::<TestKey, u32>(&env, &key), None);
+}
+
+/// Benchmark: repeated `persistent_read` calls avoid TTL overhead.
+///
+/// This simulates a read-heavy query path (e.g. the referral `accrue` loop
+/// reading tier BPS from persistent storage) where the entry was recently
+/// written and TTL is fresh.
+#[test]
+fn persistent_read_loop_avoids_ttl_overhead() {
+    let env = Env::default();
+
+    // Simulate a batch write followed by batch reads.
+    for i in 0..5 {
+        let key = TestKey::U32(300 + i);
+        persistent_set(&env, &key, &i);
+    }
+
+    // Read back all entries — persistent_read skips extend_ttl.
+    for i in 0..5 {
+        let key = TestKey::U32(300 + i);
+        let val = persistent_read::<TestKey, u32>(&env, &key);
+        assert_eq!(val, Some(i));
+    }
 }

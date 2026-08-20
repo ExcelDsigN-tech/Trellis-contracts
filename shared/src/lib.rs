@@ -19,8 +19,8 @@ pub use events::{
 pub use storage::{
     instance_get, instance_has, instance_remove, instance_set,
     is_paused, persistent_extend_ttl, persistent_get, persistent_has,
-    persistent_remove, persistent_set, set_paused, temporary_get,
-    temporary_has, temporary_remove, temporary_set,
+    persistent_read, persistent_remove, persistent_set, set_paused,
+    temporary_get, temporary_has, temporary_remove, temporary_set,
     PERSISTENT_BUMP_AMOUNT, PERSISTENT_TTL_THRESHOLD,
     TEMPORARY_BUMP_AMOUNT, TEMPORARY_TTL_THRESHOLD,
 };
