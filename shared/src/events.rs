@@ -18,6 +18,11 @@ pub const CONTRACT_PAUSED: Symbol = symbol_short!("paused");
 pub const CONTRACT_RESUMED: Symbol = symbol_short!("resumed");
 pub const CONTRACT_UPGRADED: Symbol = symbol_short!("upgraded");
 pub const REFERRAL_REGISTERED: Symbol = symbol_short!("ref_reg");
+pub const PROPOSAL_CREATED: Symbol = symbol_short!("prop_new");
+pub const PROPOSAL_APPROVED: Symbol = symbol_short!("prop_apr");
+pub const PROPOSAL_EXECUTED: Symbol = symbol_short!("prop_exc");
+pub const ROLE_GRANTED: Symbol = symbol_short!("role_grt");
+pub const ROLE_REVOKED: Symbol = symbol_short!("role_rvk");
 
 /// Emits `AidCreated`.
 ///
@@ -185,6 +190,96 @@ pub fn emit<T: soroban_sdk::IntoVal<Env, soroban_sdk::Val>>(env: &Env, topic: Sy
     env.events().publish((topic,), data);
 }
 
+/// Emits `RoleGranted`.
+///
+/// Topics: `("role", "granted")`
+///
+/// Data: `(admin, grantee, role_name, timestamp)`
+pub fn emit_role_granted(
+    env: &Env,
+    admin: &Address,
+    grantee: &Address,
+    role_name: Symbol,
+    timestamp: u64,
+) {
+    env.events().publish(
+        (symbol_short!("role"), symbol_short!("granted")),
+        (admin.clone(), grantee.clone(), role_name, timestamp),
+    );
+}
+
+/// Emits `RoleRevoked`.
+///
+/// Topics: `("role", "revoked")`
+///
+/// Data: `(admin, grantee, role_name, timestamp)`
+pub fn emit_role_revoked(
+    env: &Env,
+    admin: &Address,
+    grantee: &Address,
+    role_name: Symbol,
+    timestamp: u64,
+) {
+    env.events().publish(
+        (symbol_short!("role"), symbol_short!("revoked")),
+        (admin.clone(), grantee.clone(), role_name, timestamp),
+    );
+}
+
+/// Emits `ProposalCreated`.
+///
+/// Topics: `("proposal", "created")`
+///
+/// Data: `(proposal_id, proposer, action_description, timestamp)`
+pub fn emit_proposal_created(
+    env: &Env,
+    proposal_id: u64,
+    proposer: &Address,
+    action: Symbol,
+    timestamp: u64,
+) {
+    env.events().publish(
+        (symbol_short!("proposal"), symbol_short!("created")),
+        (proposal_id, proposer.clone(), action, timestamp),
+    );
+}
+
+/// Emits `ProposalApproved`.
+///
+/// Topics: `("proposal", "approved")`
+///
+/// Data: `(proposal_id, approver, approval_count, timestamp)`
+pub fn emit_proposal_approved(
+    env: &Env,
+    proposal_id: u64,
+    approver: &Address,
+    approval_count: u32,
+    timestamp: u64,
+) {
+    env.events().publish(
+        (symbol_short!("proposal"), symbol_short!("approved")),
+        (proposal_id, approver.clone(), approval_count, timestamp),
+    );
+}
+
+/// Emits `ProposalExecuted`.
+///
+/// Topics: `("proposal", "executed")`
+///
+/// Data: `(proposal_id, executor, approval_count, timestamp)`
+pub fn emit_proposal_executed(
+    env: &Env,
+    proposal_id: u64,
+    executor: &Address,
+    approval_count: u32,
+    timestamp: u64,
+) {
+    env.events().publish(
+        (symbol_short!("proposal"), symbol_short!("executed")),
+        (proposal_id, executor.clone(), approval_count, timestamp),
+    );
+}
+
 #[cfg(test)]
 mod tests {
     use super::emit_aid_created;
@@ -234,8 +329,7 @@ mod tests {
             topics,
             (symbol_short!("aid"), symbol_short!("created"),).into_val(&env)
         );
-        let decoded_data: (u64, Address, Address, i128, u64, u64) =
-            FromVal::from_val(&env, &data);
+        let decoded_data: (u64, Address, Address, i128, u64, u64) = FromVal::from_val(&env, &data);
 
         assert_eq!(
             decoded_data,

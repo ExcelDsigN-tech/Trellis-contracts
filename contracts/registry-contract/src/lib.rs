@@ -1,7 +1,9 @@
 #![no_std]
 
-use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, Env, Map, Symbol, Vec};
 use shared::{auth, errors::Error};
+use soroban_sdk::{
+    contract, contractimpl, contracttype, symbol_short, Address, Env, Map, Symbol, Vec,
+};
 
 const KEY_CONTRACTS: Symbol = symbol_short!("contracts");
 const KEY_HISTORY: Symbol = symbol_short!("history");
@@ -38,7 +40,13 @@ impl RegistryContract {
             .instance()
             .get(&KEY_CONTRACTS)
             .unwrap_or_else(|| Map::new(&env));
-        contracts.set(name.clone(), ContractRegistration { address: address.clone(), version });
+        contracts.set(
+            name.clone(),
+            ContractRegistration {
+                address: address.clone(),
+                version,
+            },
+        );
         env.storage().instance().set(&KEY_CONTRACTS, &contracts);
 
         let mut history: Map<Symbol, Vec<u32>> = env
@@ -83,8 +91,8 @@ mod tests {
     extern crate std;
 
     use super::*;
-    use soroban_sdk::{testutils::Address as _, Symbol};
     use shared::errors::Error;
+    use soroban_sdk::{testutils::Address as _, Symbol};
 
     #[test]
     fn registers_and_resolves_contracts_with_version_history() {
@@ -98,9 +106,13 @@ mod tests {
         registry.initialize(&admin);
 
         let name = Symbol::new(&env, "treasury");
-        assert!(registry.try_set_contract(&admin, &name, &treasury, &1_u32).is_ok());
+        assert!(registry
+            .try_set_contract(&admin, &name, &treasury, &1_u32)
+            .is_ok());
         let upgraded_treasury = Address::generate(&env);
-        assert!(registry.try_set_contract(&admin, &name, &upgraded_treasury, &2_u32).is_ok());
+        assert!(registry
+            .try_set_contract(&admin, &name, &upgraded_treasury, &2_u32)
+            .is_ok());
 
         let (resolved_address, version) = registry.get_contract(&name);
         assert_eq!(resolved_address, upgraded_treasury);

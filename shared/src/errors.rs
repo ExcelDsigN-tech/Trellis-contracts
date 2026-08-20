@@ -30,4 +30,12 @@ pub enum Error {
     InvalidArgument = 10,
     /// The operation requires the contract to be paused but it is currently active.
     NotPaused = 11,
+    /// The proposal was not found.
+    ProposalNotFound = 12,
+    /// The caller has already approved this proposal.
+    AlreadyApproved = 13,
+    /// The proposal has not reached the approval threshold.
+    BelowThreshold = 14,
+    /// The proposal has already been executed.
+    AlreadyExecuted = 15,
 }

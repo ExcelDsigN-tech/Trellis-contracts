@@ -163,7 +163,9 @@ impl TreasuryContract {
 
         let key = (BALANCE, RESERVE_CATEGORY);
         let balance: i128 = instance_get(&env, &key).unwrap_or(0);
-        let new_balance = balance.checked_sub(amount).ok_or(Error::InsufficientBalance)?;
+        let new_balance = balance
+            .checked_sub(amount)
+            .ok_or(Error::InsufficientBalance)?;
         if new_balance < 0 {
             return Err(Error::InsufficientBalance);
         }
