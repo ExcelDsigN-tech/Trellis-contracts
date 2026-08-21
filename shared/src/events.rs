@@ -234,8 +234,7 @@ mod tests {
             topics,
             (symbol_short!("aid"), symbol_short!("created"),).into_val(&env)
         );
-        let decoded_data: (u64, Address, Address, i128, u64, u64) =
-            FromVal::from_val(&env, &data);
+        let decoded_data: (u64, Address, Address, i128, u64, u64) = FromVal::from_val(&env, &data);
 
         assert_eq!(
             decoded_data,
