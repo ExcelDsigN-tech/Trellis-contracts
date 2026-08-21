@@ -1,0 +1,83 @@
+# Security audit exception allowlist.
+#
+# Every high-severity finding that is NOT fixed must be listed here with a
+# written rationale. Entries without a rationale, with a mismatched severity,
+# or past their `expires` date are ignored by the gate - the finding fails CI
+# again. See security/README.md for the full workflow.
+#
+# Fields:
+#   id        - RustSec advisory id (e.g. "RUSTSEC-2025-0009") or clippy lint
+#               name (e.g. "clippy::unwrap_used")
+#   path      - optional crate or directory scope; omitted = matches anywhere
+#   severity  - "high" | "medium" | "low" (must match the mapped severity)
+#   rationale - REQUIRED human justification, why this is acceptable to ship
+#   expires   - optional ISO date (YYYY-MM-DD); exception stops applying after
+
+[[exceptions]]
+id = "clippy::expect_used"
+path = "shared/src/auth.rs"
+severity = "high"
+rationale = """
+get_admin() expects on the admin key that initialize() is contractually
+required to write first. Every admin-gated entry point calls it after auth;
+an uninitialized deployment aborts loudly instead of silently proceeding,
+which is the desired fail-fast behavior for a missing-admin invariant.
+"""
+expires = "2026-12-31"
+
+[[exceptions]]
+id = "clippy::expect_used"
+path = "contracts/aid-contract/src/storage.rs"
+severity = "high"
+rationale = """
+get_token() expects on a key only initialize() writes; every reachable caller
+(create_aid escrow transfer) runs after initialization by construction. A
+missing token means the contract was never initialized - aborting is safer
+than returning a zero address that could be used for a bogus transfer.
+"""
+expires = "2026-12-31"
+
+[[exceptions]]
+id = "clippy::expect_used"
+path = "contracts/aid-contract/src/lib.rs"
+severity = "high"
+rationale = """
+create_aid() expects on checked_add of the u64 aid counter. Overflow would
+require 2^64 successful aid creations within one contract instance's lifetime
+(each costing a persistent-storage write), so the panic branch is unreachable
+in practice while still avoiding silent wraparound.
+"""
+expires = "2026-12-31"
+
+[[exceptions]]
+id = "clippy::arithmetic_side_effects"
+path = "contracts/referral-contract"
+severity = "medium"
+rationale = """
+Referral bonus arithmetic operates on validated i128 amounts bounded by the
+treasury deposit size; upstream Soroban host aborts the invocation on
+overflow (overflow-checks = true in [profile.release]), so no silent wrap can
+be committed. Reported as medium; re-review scheduled.
+"""
+expires = "2026-12-31"
+
+[[exceptions]]
+id = "clippy::arithmetic_side_effects"
+path = "contracts/treasury-contract"
+severity = "medium"
+rationale = "Fee and share math on capped i128 balances; host-level overflow abort makes wrapping unreachable."
+expires = "2026-12-31"
+
+[[exceptions]]
+id = "clippy::arithmetic_side_effects"
+path = "shared/src/auth.rs"
+severity = "medium"
+rationale = "Role-count increment on a bounded role map; host aborts on overflow."
+expires = "2026-12-31"
+
+[[exceptions]]
+id = "clippy::arithmetic_side_effects"
+path = "contracts/rebalancer-contract"
+severity = "medium"
+rationale = "Fee basis-point multiplication on u128 trade amounts; host aborts on overflow."
+expires = "2026-12-31"

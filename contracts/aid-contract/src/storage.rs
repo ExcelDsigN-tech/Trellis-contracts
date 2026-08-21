@@ -31,6 +31,8 @@ pub enum DataKey {
     Aid(u64),
     /// Monotonically-increasing aid identifier counter (instance).
     AidCounter,
+    /// SPL token used for escrow transfers (instance).
+    Token,
 }
 
 // ---------------------------------------------------------------------------
@@ -76,4 +78,21 @@ pub fn get_aid_counter(env: &Env) -> u64 {
 /// Write the aid counter to instance storage.
 pub fn set_aid_counter(env: &Env, counter: u64) {
     instance_set(env, &DataKey::AidCounter, &counter);
+}
+
+// ---------------------------------------------------------------------------
+// Token address — instance storage
+// ---------------------------------------------------------------------------
+
+/// Read the escrow token configured at initialization.
+///
+/// Panics if the contract has not been initialized; every caller that can
+/// reach a transfer already requires `initialize` to have run.
+pub fn get_token(env: &Env) -> soroban_sdk::Address {
+    instance_get(env, &DataKey::Token).expect("contract not initialized: no token configured")
+}
+
+/// Store the escrow token address (called once by `initialize`).
+pub fn set_token(env: &Env, token: &soroban_sdk::Address) {
+    instance_set(env, &DataKey::Token, token);
 }
