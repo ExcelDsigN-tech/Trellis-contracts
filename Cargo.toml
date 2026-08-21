@@ -12,7 +12,7 @@ members = [
 ]
 
 [workspace.dependencies]
-soroban-sdk = { version = "22.0.1", default-features = true }
+soroban-sdk = { version = "22.0.1"}
 shared = { path = "shared" }
 
 [profile.release]

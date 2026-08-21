@@ -1,16 +1,24 @@
 #![no_std]
 
 pub mod auth;
-pub mod errors;
-pub mod events;
+pub mod event;
 pub mod math;
 pub mod storage;
 pub mod utils;
 
+#[soroban_sdk::contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(u32)]
+pub enum Error {
+    InvalidAmount = 1,
+    InvalidArgument = 2,
+    Uninitialised = 3,
+    Unauthorized = 4,
+}
+
 // Re-export the most commonly-needed items at crate root for ergonomic use.
 pub use auth::{get_admin, require_admin, require_not_paused, set_admin};
-pub use errors::Error;
-pub use events::{
+pub use event::{
     emit, AID_CLAIMED, AID_CREATED, AID_REFUNDED, AID_SETTLED, COMMISSION_PAID,
     CONTRACT_PAUSED, CONTRACT_RESUMED, CONTRACT_UPGRADED, PARAMETER_CHANGED,
     REFERRAL_ACCRUED, REFERRAL_REGISTERED, REFERRER_SET, TIER_CONFIG_SET, TREASURY_DEPOSIT,
