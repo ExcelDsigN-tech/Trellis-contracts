@@ -100,9 +100,11 @@ where
 {
     let value = env.storage().persistent().get(key);
     if value.is_some() {
-        env.storage()
-            .persistent()
-            .extend_ttl(key, PERSISTENT_TTL_THRESHOLD, PERSISTENT_BUMP_AMOUNT);
+        env.storage().persistent().extend_ttl(
+            key,
+            PERSISTENT_TTL_THRESHOLD,
+            PERSISTENT_BUMP_AMOUNT,
+        );
     }
     value
 }

@@ -87,7 +87,10 @@ fn persistent_set_get_roundtrip() {
     assert_eq!(persistent_get::<TestKey, i128>(&env, &key), None);
 
     persistent_set(&env, &key, &1_000_i128);
-    assert_eq!(persistent_get::<TestKey, i128>(&env, &key), Some(1_000_i128));
+    assert_eq!(
+        persistent_get::<TestKey, i128>(&env, &key),
+        Some(1_000_i128)
+    );
 }
 
 #[test]

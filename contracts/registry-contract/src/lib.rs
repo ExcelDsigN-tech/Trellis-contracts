@@ -2,6 +2,9 @@
 
 use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, Bytes, Env, Map, Symbol, Vec};
 use shared::{auth, errors::Error};
+use soroban_sdk::{
+    contract, contractimpl, contracttype, symbol_short, Address, Env, Map, Symbol, Vec,
+};
 
 // Storage keys
 const KEY_CONTRACTS: Symbol = symbol_short!("contracts");
@@ -75,7 +78,13 @@ impl RegistryContract {
             .instance()
             .get(&KEY_CONTRACTS)
             .unwrap_or_else(|| Map::new(&env));
-        contracts.set(name.clone(), ContractRegistration { address: address.clone(), version });
+        contracts.set(
+            name.clone(),
+            ContractRegistration {
+                address: address.clone(),
+                version,
+            },
+        );
         env.storage().instance().set(&KEY_CONTRACTS, &contracts);
 
         // Check the latest version first to avoid deserializing the full
@@ -262,6 +271,7 @@ mod tests {
     use super::*;
     use soroban_sdk::{testutils::Address as _, Bytes, Symbol};
     use shared::errors::Error;
+    use soroban_sdk::{testutils::Address as _, Symbol};
 
     fn create_test_hash(env: &Env) -> Bytes {
         // Create a 32-byte hash for testing
@@ -284,9 +294,13 @@ mod tests {
         registry.initialize(&admin);
 
         let name = Symbol::new(&env, "treasury");
-        assert!(registry.try_set_contract(&admin, &name, &treasury, &1_u32).is_ok());
+        assert!(registry
+            .try_set_contract(&admin, &name, &treasury, &1_u32)
+            .is_ok());
         let upgraded_treasury = Address::generate(&env);
-        assert!(registry.try_set_contract(&admin, &name, &upgraded_treasury, &2_u32).is_ok());
+        assert!(registry
+            .try_set_contract(&admin, &name, &upgraded_treasury, &2_u32)
+            .is_ok());
 
         let (resolved_address, version) = registry.get_contract(&name);
         assert_eq!(resolved_address, upgraded_treasury);
