@@ -1,3 +1,11 @@
+use soroban_sdk::{
+    contract, contractimpl, contracterror, panic_with_error, token, symbol_short, Address, Env, Symbol, Map,
+};
+use shared::events::{emit_aid_created, emit_action_executed, emit_module_initialized, emit_permission_changed};
+use shared::{emit, AID_CLAIMED, AID_CREATED, AID_REFUNDED, AID_SETTLED, Error};
+use shared::storage::is_paused;
+
+const KEY_AIDS: Symbol = symbol_short!("aids");
 #![no_std]
 
 use soroban_sdk::{contract, contractimpl, contracterror, token, Address, Env};
@@ -7,7 +15,7 @@ use shared::storage::{is_paused, set_paused as shared_set_paused};
 pub mod storage;
 pub mod types;
 
-use storage::{get_aid, get_aid_counter, has_aid, set_aid, set_aid_counter};
+use storage::{get_aid, has_aid, set_aid};
 
 pub use types::{AidRecord, AidStatus};
 
@@ -53,6 +61,7 @@ impl AidContract {
     /// Must be called exactly once immediately after deployment.
     pub fn initialize(env: Env, admin: Address, token: Address) {
         shared::auth::set_admin(&env, &admin);
+        emit_module_initialized(&env, symbol_short!("aid"), 1, &admin, env.ledger().timestamp());
         env.storage().instance().set(&storage::DataKey::Token, &token);
     }
 
@@ -109,6 +118,25 @@ impl AidContract {
         };
         set_aid(&env, aid_id, &record);
 
+        let mut aids: Map<u64, AidRecord> = env.storage()
+            .persistent()
+            .get(&KEY_AIDS)
+            .unwrap_or_else(|| Map::new(&env));
+        aids.set(aid_id, record);
+        env.storage().persistent().set(&KEY_AIDS, &aids);
+
+        emit_aid_created(
+            &env,
+            aid_id,
+            &donor,
+            &recipient,
+            amount,
+            env.ledger().sequence().into(),
+            expiry_ledger.into(),
+        );
+
+        emit(&env, AID_CREATED, (aid_id, donor, recipient, amount, expiry_ledger));
+        emit_action_executed(&env, symbol_short!("aid"), symbol_short!("create"), &env.current_contract_address(), true, env.ledger().timestamp());
         // Escrow funds from donor into contract.
         token::Client::new(&env, &token).transfer(
             &donor,
@@ -161,6 +189,9 @@ impl AidContract {
             &record.amount,
         );
 
+        emit(&env, AID_CLAIMED, aid_id);
+        emit(&env, AID_SETTLED, aid_id);
+        emit_action_executed(&env, symbol_short!("aid"), symbol_short!("claim_aid"), &env.current_contract_address(), true, env.ledger().timestamp());
         Ok(())
     }
 
@@ -202,6 +233,8 @@ impl AidContract {
             &record.amount,
         );
 
+        emit(&env, AID_REFUNDED, aid_id);
+        emit_action_executed(&env, symbol_short!("aid"), symbol_short!("refund"), &env.current_contract_address(), true, env.ledger().timestamp());
         Ok(())
     }
 
@@ -214,6 +247,7 @@ impl AidContract {
         storage::get_aid(&env, aid_id)
     }
 
+    /// Set the paused state of the contract.
     // -----------------------------------------------------------------------
     // Admin controls
     // -----------------------------------------------------------------------
@@ -225,6 +259,9 @@ impl AidContract {
             env.panic_with_error(shared::Error::Unauthorized);
         }
         admin.require_auth();
+
+        env.storage().instance().set(&Symbol::new(&env, "paused"), &paused);
+        emit_permission_changed(&env, symbol_short!("aid"), symbol_short!("paused"), &admin, paused, env.ledger().timestamp());
         shared_set_paused(&env, paused);
     }
 }

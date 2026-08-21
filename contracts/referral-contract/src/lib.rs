@@ -1,9 +1,12 @@
 #![no_std]
 
-use soroban_sdk::{contract, contractimpl, contracttype, vec, Address, Env, IntoVal, Symbol};
+use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, vec, Address, Env, IntoVal, Symbol};
 
 use shared::errors::Error;
-use shared::storage::persistent_set;
+use shared::events::{
+    emit_action_executed, emit_module_initialized, emit_permission_changed,
+};
+use shared::storage::{persistent_get, persistent_set};
 
 const MAX_SUPPORTED_TIERS: u32 = 10;
 const MIN_REWARD_CAP: i128 = 0;
@@ -87,14 +90,14 @@ impl ReferralContract {
         env.storage().instance().set(&DataKey::MaxTiers, &1_u32);
         env.storage().instance().set(&DataKey::RewardCap, &0_i128);
         env.storage().instance().set(&DataKey::TierBps(1), &0_i128);
+        emit_module_initialized(&env, symbol_short!("referral"), 1, &admin, env.ledger().timestamp());
     }
 
     /// Configure the treasury contract used for referral reward claims.
     pub fn set_treasury(env: Env, caller: Address, treasury: Address) -> Result<(), Error> {
         require_admin(&env, &caller)?;
         env.storage().instance().set(&DataKey::Treasury, &treasury);
-        env.events()
-            .publish((shared::events::TREASURY_SET,), treasury);
+        emit_action_executed(&env, symbol_short!("referral"), symbol_short!("treasury"), &caller, true, env.ledger().timestamp());
         Ok(())
     }
 
@@ -141,6 +144,7 @@ impl ReferralContract {
                 reward_cap,
             },
         );
+        emit_permission_changed(&env, symbol_short!("referral"), symbol_short!("tier"), &caller, true, env.ledger().timestamp());
         Ok(())
     }
 
@@ -179,10 +183,11 @@ impl ReferralContract {
         env.events().publish(
             (shared::events::REFERRER_SET,),
             ReferrerSetEvent {
-                referred_wallet,
-                referrer,
+                referred_wallet: referred_wallet.clone(),
+                referrer: referrer.clone(),
             },
         );
+        emit_action_executed(&env, symbol_short!("referral"), symbol_short!("referrer"), &caller, true, env.ledger().timestamp());
         Ok(())
     }
 
@@ -241,6 +246,7 @@ impl ReferralContract {
                 referrer: referrer.clone(),
             },
         );
+        emit_action_executed(&env, symbol_short!("referral"), symbol_short!("register"), &wallet, true, env.ledger().timestamp());
         Ok(())
     }
 
@@ -340,8 +346,9 @@ impl ReferralContract {
             .set(&DataKey::Accrued(referrer.clone()), &0_i128);
         env.events().publish(
             (shared::events::COMMISSION_PAID,),
-            ClaimRewardsEvent { referrer, amount },
+            ClaimRewardsEvent { referrer: referrer.clone(), amount },
         );
+        emit_action_executed(&env, symbol_short!("referral"), symbol_short!("claim"), &referrer, true, env.ledger().timestamp());
         Ok(amount)
     }
 }

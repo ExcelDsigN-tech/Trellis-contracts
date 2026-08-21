@@ -4,6 +4,7 @@ use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, E
 
 use shared::auth::{self, Role};
 use shared::errors::Error;
+use shared::events::{emit_action_executed, emit_module_initialized};
 use shared::events;
 use shared::storage::{instance_get, instance_set, persistent_set};
 
@@ -167,6 +168,7 @@ impl GovernanceContract {
 
         // Seed parameter defaults.
         seed_defaults(&env);
+        emit_module_initialized(&env, symbol_short!("gov"), 1, &admin, env.ledger().timestamp());
 
         Ok(())
     }
@@ -391,6 +393,7 @@ impl GovernanceContract {
             (shared::events::PARAMETER_CHANGED,),
             ParameterChangedEvent { key, value },
         );
+        emit_action_executed(&env, symbol_short!("gov"), symbol_short!("set_param"), &caller, true, env.ledger().timestamp());
         Ok(())
     }
 

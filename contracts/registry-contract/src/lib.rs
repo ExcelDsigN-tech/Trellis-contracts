@@ -2,6 +2,7 @@
 
 use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, Bytes, Env, Map, Symbol, Vec};
 use shared::{auth, errors::Error};
+use shared::events::{emit_action_executed, emit_module_initialized};
 use soroban_sdk::{
     contract, contractimpl, contracttype, symbol_short, Address, Env, Map, Symbol, Vec,
 };
@@ -53,6 +54,7 @@ impl RegistryContract {
     /// Initialise the contract, setting the admin address.
     pub fn initialize(env: Env, admin: Address) {
         shared::auth::set_admin(&env, &admin);
+        emit_module_initialized(&env, symbol_short!("registry"), 1, &admin, env.ledger().timestamp());
     }
 
     // ─── Contract Registration ─────────────────────────────────────────────
@@ -109,6 +111,7 @@ impl RegistryContract {
             }
         }
 
+        emit_action_executed(&env, symbol_short!("registry"), symbol_short!("set_ctr"), &caller, true, env.ledger().timestamp());
         Ok(())
     }
 
