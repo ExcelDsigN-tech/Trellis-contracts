@@ -231,3 +231,72 @@ fn test_distribute_reward_rejects_when_no_referral_contract_registered() {
     assert!(result.is_err());
     assert_eq!(client.category_balance(&rewards), 1_000);
 }
+
+// ===========================================================================
+// Gas benchmark tests
+// ===========================================================================
+
+/// Benchmark: withdraw rejects zero-amount BEFORE auth check.
+///
+/// Before optimization: `require_role` ran first (auth commit).
+/// After: `amount <= 0` check runs first — saves the auth cost on trivial
+/// rejects.
+#[test]
+fn gas_bench_withdraw_rejects_zero_before_auth() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (client, admin, _limit) = setup(&env);
+    let category = symbol_short!("reserve");
+    let recipient = Address::generate(&env);
+
+    client.deposit(&admin, &category, &500);
+
+    // Zero amount rejected before auth commit — cheaper error path
+    let stranger = Address::generate(&env);
+    let result = client.try_withdraw(&stranger, &recipient, &0, &category);
+    assert_eq!(result, Err(Ok(Error::InvalidArgument)));
+}
+
+/// Benchmark: deposit rejects negative amount BEFORE auth check.
+#[test]
+fn gas_bench_deposit_rejects_zero_before_auth() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (client, admin, _limit) = setup(&env);
+    let category = symbol_short!("reserve");
+    let stranger = Address::generate(&env);
+
+    let result = client.try_deposit(&stranger, &category, &0);
+    assert_eq!(result, Err(Ok(Error::InvalidArgument)));
+}
+
+/// Benchmark: distribute_reward rejects zero BEFORE referral lookup + auth.
+#[test]
+fn gas_bench_distribute_reward_rejects_zero_before_auth() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (client, admin, _limit) = setup(&env);
+    let rewards = symbol_short!("rewards");
+    let recipient = Address::generate(&env);
+
+    client.deposit(&admin, &rewards, &1_000);
+
+    let result = client.try_distribute_reward(&recipient, &0);
+    assert_eq!(result, Err(Ok(Error::InvalidArgument)));
+}
+
+/// Benchmark: emergency_withdraw rejects zero BEFORE pause check + auth.
+#[test]
+fn gas_bench_emergency_withdraw_rejects_zero_before_auth() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (client, admin, _limit) = setup(&env);
+    let recipient = Address::generate(&env);
+
+    let result = client.try_emergency_withdraw(&admin, &recipient, &0);
+    assert_eq!(result, Err(Ok(Error::InvalidArgument)));
+}

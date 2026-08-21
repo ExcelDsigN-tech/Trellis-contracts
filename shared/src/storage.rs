@@ -89,6 +89,10 @@ where
 ///
 /// The TTL is bumped on every read so that frequently-accessed records stay
 /// alive.  Returns `None` when the key is absent.
+///
+/// Use [`persistent_read`] for read-only query paths where TTL extension is
+/// unnecessary (e.g. getter functions, inside-loop reads within the same
+/// transaction).
 pub fn persistent_get<K, V>(env: &Env, key: &K) -> Option<V>
 where
     K: IntoVal<Env, Val>,
@@ -103,6 +107,26 @@ where
         );
     }
     value
+}
+
+/// Read a value from **persistent** storage **without** extending TTL.
+///
+/// This is the gas-cheapest read path — it skips the `extend_ttl` syscall
+/// entirely.  Use it for:
+/// - Read-only query / getter functions that don't mutate state.
+/// - Intermediate reads inside a loop where you will write the entry later
+///   (the write path already bumps TTL).
+/// - One-shot existence + value reads where the entry was very recently
+///   written (TTL is still fresh).
+///
+/// Prefer [`persistent_get`] when you want the default read-and-keep-alive
+/// behavior for frequently accessed records.
+pub fn persistent_read<K, V>(env: &Env, key: &K) -> Option<V>
+where
+    K: IntoVal<Env, Val>,
+    V: TryFromVal<Env, Val>,
+{
+    env.storage().persistent().get(key)
 }
 
 /// Write a value to **persistent** storage and extend its TTL immediately.
