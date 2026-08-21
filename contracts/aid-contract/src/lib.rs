@@ -14,6 +14,7 @@ use shared::storage::{is_paused, set_paused as shared_set_paused};
 
 pub mod storage;
 pub mod types;
+pub mod api;
 
 use storage::{get_aid, has_aid, set_aid};
 
@@ -27,25 +28,16 @@ pub use types::{AidRecord, AidStatus};
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(u32)]
 pub enum AidError {
-    /// Caller is not the authorised recipient.
     Unauthorized = 100,
-    /// The requested aid record was not found.
     NotFound = 101,
-    /// The aid has already been settled or refunded.
     AlreadyClaimed = 102,
-    /// The claim window has expired (past `expiry_ledger`).
     Expired = 103,
-    /// The contract is paused; no state-changing operations are allowed.
     Paused = 104,
     /// The expiry has not yet passed (refund attempted too early).
     NotExpiredYet = 105,
     /// The aid has already been refunded.
     AlreadyRefunded = 106,
 }
-
-// ---------------------------------------------------------------------------
-// Contract
-// ---------------------------------------------------------------------------
 
 #[contract]
 pub struct AidContract;
@@ -87,7 +79,7 @@ impl AidContract {
 
         // Fast-path: cheapest validation first (gas ordering)
         if amount <= 0 {
-            env.panic_with_error(shared::Error::InvalidAmount);
+            panic_with_error!(&env, SharedError::InvalidAmount);
         }
         if expiry_ledger <= env.ledger().sequence() {
             env.panic_with_error(AidError::NotExpiredYet);
@@ -179,7 +171,6 @@ impl AidContract {
             return Err(AidError::Unauthorized);
         }
 
-        // Checks-effects-interactions: write status first, then transfer.
         record.status = AidStatus::Settled;
         set_aid(&env, aid_id, &record);
 
@@ -223,7 +214,6 @@ impl AidContract {
             return Err(AidError::NotExpiredYet);
         }
 
-        // Checks-effects-interactions.
         record.status = AidStatus::Refunded;
         set_aid(&env, aid_id, &record);
 
@@ -238,11 +228,6 @@ impl AidContract {
         Ok(())
     }
 
-    // -----------------------------------------------------------------------
-    // Queries
-    // -----------------------------------------------------------------------
-
-    /// Return the aid record for `aid_id`, or `None` if it does not exist.
     pub fn get_aid(env: Env, aid_id: u64) -> Option<AidRecord> {
         storage::get_aid(&env, aid_id)
     }
