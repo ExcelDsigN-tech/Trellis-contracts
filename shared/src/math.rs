@@ -27,7 +27,6 @@ pub fn bps_of(amount: i128, bps: i128) -> Option<i128> {
     apply_bps(amount, bps).ok()
 }
 
-
 /// Adds two values, returning [`Error::Overflow`] if the result is out of range.
 pub fn checked_add(a: i128, b: i128) -> Result<i128, Error> {
     a.checked_add(b).ok_or(Error::Overflow)

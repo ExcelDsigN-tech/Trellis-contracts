@@ -1,5 +1,5 @@
-use soroban_sdk::Vec;
 use crate::Trade;
+use soroban_sdk::Vec;
 
 pub fn calculate_total_fees(trades: &Vec<Trade>) -> u128 {
     let mut total_fees = 0;

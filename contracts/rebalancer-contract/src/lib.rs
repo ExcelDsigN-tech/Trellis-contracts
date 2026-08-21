@@ -9,6 +9,7 @@ mod strategy_executor;
 mod logging;
 
 use fee_calculator::calculate_total_fees;
+use logging::log_trade;
 use slippage_predictor::predict_slippage;
 use soroban_sdk::{contract, contractimpl, contracttype, Env, Symbol, Vec, U256};
 use strategy_executor::execute_strategy;
@@ -61,9 +62,20 @@ impl MultiAssetRebalancer {
             execute_strategy(&env, &strategy, &trades);
         }
 
-        SimulationResult {
+        let result = SimulationResult {
             expected_fees: total_fees,
             expected_slippage: total_slippage,
-        }
+        };
+
+        emit_action_executed(
+            &env,
+            symbol_short!("reb"),
+            symbol_short!("rebal"),
+            &env.current_contract_address(),
+            !dry_run,
+            env.ledger().timestamp(),
+        );
+
+        result
     }
 }
