@@ -30,4 +30,10 @@ pub enum Error {
     InvalidArgument = 10,
     /// The operation requires the contract to be paused but it is currently active.
     NotPaused = 11,
+    /// Attempted to modify an entry that has been marked immutable.
+    ImmutableEntry = 12,
+    /// The supplied metadata hash is invalid (wrong length or format).
+    InvalidHash = 13,
+    /// No metadata entry exists for the given identifier.
+    MetadataNotFound = 14,
 }

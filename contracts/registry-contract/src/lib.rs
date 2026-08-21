@@ -1,11 +1,14 @@
 #![no_std]
 
-use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, Env, Map, Symbol, Vec};
+use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, Bytes, Env, Map, Symbol, Vec};
 use shared::{auth, errors::Error};
 
+// Storage keys
 const KEY_CONTRACTS: Symbol = symbol_short!("contracts");
+const KEY_METADATA: Symbol = symbol_short!("metadata");
 const KEY_HISTORY: Symbol = symbol_short!("history");
 
+/// Represents a registered contract with its address and version.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ContractRegistration {
@@ -13,15 +16,43 @@ pub struct ContractRegistration {
     pub version: u32,
 }
 
+/// Represents metadata for a contract, module, or entity.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MetadataEntry {
+    /// URI pointing to the metadata (e.g., IPFS, HTTPS)
+    pub uri: Bytes,
+    /// SHA-256 hash of the metadata content for verification
+    pub hash: Bytes,
+    /// Whether this entry can be updated after creation
+    pub immutable: bool,
+    /// Timestamp when this entry was created or last updated
+    pub updated_at: u64,
+    /// Version of the metadata schema
+    pub schema_version: u32,
+}
+
+/// Combined registry entry containing both contract and metadata information.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RegistryEntry {
+    pub contract: ContractRegistration,
+    pub metadata: MetadataEntry,
+}
+
 #[contract]
 pub struct RegistryContract;
 
 #[contractimpl]
 impl RegistryContract {
+    // ─── Initialization ──────────────────────────────────────────────────────
+
     /// Initialise the contract, setting the admin address.
     pub fn initialize(env: Env, admin: Address) {
         shared::auth::set_admin(&env, &admin);
     }
+
+    // ─── Contract Registration ─────────────────────────────────────────────
 
     /// Register or update a contract address for `name` and record the version.
     pub fn set_contract(
@@ -41,6 +72,7 @@ impl RegistryContract {
         contracts.set(name.clone(), ContractRegistration { address: address.clone(), version });
         env.storage().instance().set(&KEY_CONTRACTS, &contracts);
 
+        // Record version history
         let mut history: Map<Symbol, Vec<u32>> = env
             .storage()
             .instance()
@@ -76,15 +108,154 @@ impl RegistryContract {
             .unwrap_or_else(|| Map::new(&env));
         history.get(name).ok_or(Error::NotFound)
     }
+
+    // ─── Metadata Registry ──────────────────────────────────────────────────
+
+    /// Register or update metadata for an identifier.
+    ///
+    /// # Arguments
+    /// * `caller` - Must be the admin
+    /// * `name` - The identifier (e.g., "treasury", "oracle")
+    /// * `uri` - URI pointing to the metadata (IPFS, HTTPS, etc.)
+    /// * `hash` - SHA-256 hash of the metadata content for verification
+    /// * `immutable` - If true, this entry cannot be updated after creation
+    /// * `schema_version` - Version of the metadata schema
+    pub fn set_metadata(
+        env: Env,
+        caller: Address,
+        name: Symbol,
+        uri: Bytes,
+        hash: Bytes,
+        immutable: bool,
+        schema_version: u32,
+    ) -> Result<(), Error> {
+        auth::require_admin(&env, &caller)?;
+
+        // Check if entry exists and is immutable
+        let metadata_map: Map<Symbol, MetadataEntry> = env
+            .storage()
+            .instance()
+            .get(&KEY_METADATA)
+            .unwrap_or_else(|| Map::new(&env));
+
+        if let Some(existing) = metadata_map.get(name.clone()) {
+            if existing.immutable {
+                return Err(Error::ImmutableEntry);
+            }
+        }
+
+        // Validate hash (ensure it's 32 bytes for SHA-256)
+        if hash.len() != 32 {
+            return Err(Error::InvalidHash);
+        }
+
+        // Validate URI (ensure it's not empty)
+        if uri.len() == 0 {
+            return Err(Error::InvalidArgument);
+        }
+
+        let entry = MetadataEntry {
+            uri,
+            hash,
+            immutable,
+            updated_at: env.ledger().timestamp(),
+            schema_version,
+        };
+
+        let mut metadata_map = metadata_map;
+        metadata_map.set(name, entry);
+        env.storage().instance().set(&KEY_METADATA, &metadata_map);
+
+        Ok(())
+    }
+
+    /// Retrieve metadata for an identifier.
+    pub fn get_metadata(env: Env, name: Symbol) -> Result<MetadataEntry, Error> {
+        let metadata_map: Map<Symbol, MetadataEntry> = env
+            .storage()
+            .instance()
+            .get(&KEY_METADATA)
+            .unwrap_or_else(|| Map::new(&env));
+        metadata_map.get(name).ok_or(Error::MetadataNotFound)
+    }
+
+    /// Get the metadata hash for an identifier (for verification).
+    pub fn get_metadata_hash(env: Env, name: Symbol) -> Result<Bytes, Error> {
+        let entry = Self::get_metadata(env, name)?;
+        Ok(entry.hash)
+    }
+
+    /// Check if an entry is immutable.
+    pub fn is_immutable(env: Env, name: Symbol) -> Result<bool, Error> {
+        let entry = Self::get_metadata(env, name)?;
+        Ok(entry.immutable)
+    }
+
+    /// Get the full registry entry (contract + metadata) for an identifier.
+    pub fn get_registry_entry(env: Env, name: Symbol) -> Result<RegistryEntry, Error> {
+        let contracts: Map<Symbol, ContractRegistration> = env
+            .storage()
+            .instance()
+            .get(&KEY_CONTRACTS)
+            .unwrap_or_else(|| Map::new(&env));
+        let contract = contracts.get(name.clone()).ok_or(Error::NotFound)?;
+
+        let metadata_map: Map<Symbol, MetadataEntry> = env
+            .storage()
+            .instance()
+            .get(&KEY_METADATA)
+            .unwrap_or_else(|| Map::new(&env));
+        let metadata = metadata_map.get(name).ok_or(Error::MetadataNotFound)?;
+
+        Ok(RegistryEntry {
+            contract,
+            metadata,
+        })
+    }
+
+    /// List all registered names.
+    pub fn list_names(env: Env) -> Result<Vec<Symbol>, Error> {
+        let contracts: Map<Symbol, ContractRegistration> = env
+            .storage()
+            .instance()
+            .get(&KEY_CONTRACTS)
+            .unwrap_or_else(|| Map::new(&env));
+        let mut names = Vec::new(&env);
+        for key in contracts.keys() {
+            names.push_back(key);
+        }
+        Ok(names)
+    }
+
+    /// List all metadata entries.
+    pub fn list_metadata_entries(env: Env) -> Result<Map<Symbol, MetadataEntry>, Error> {
+        let metadata_map: Map<Symbol, MetadataEntry> = env
+            .storage()
+            .instance()
+            .get(&KEY_METADATA)
+            .unwrap_or_else(|| Map::new(&env));
+        Ok(metadata_map)
+    }
 }
+
+// ─── Tests ──────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
     extern crate std;
 
     use super::*;
-    use soroban_sdk::{testutils::Address as _, Symbol};
+    use soroban_sdk::{testutils::Address as _, Bytes, Symbol};
     use shared::errors::Error;
+
+    fn create_test_hash(env: &Env) -> Bytes {
+        // Create a 32-byte hash for testing
+        let mut hash = Bytes::new(env);
+        for i in 0..32 {
+            hash.push_back(i as u8);
+        }
+        hash
+    }
 
     #[test]
     fn registers_and_resolves_contracts_with_version_history() {
@@ -129,5 +300,231 @@ mod tests {
             registry.try_set_contract(&attacker, &name, &treasury, &1_u32),
             Err(Ok(Error::Unauthorized))
         ));
+    }
+
+    // ─── Metadata Tests ─────────────────────────────────────────────────────
+
+    #[test]
+    fn registers_and_retrieves_metadata() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let registry_id = env.register(RegistryContract, ());
+        let admin = Address::generate(&env);
+        let registry = RegistryContractClient::new(&env, &registry_id);
+
+        registry.initialize(&admin);
+
+        let name = Symbol::new(&env, "test_contract");
+        let uri = Bytes::from_slice(&env, b"ipfs://QmTest123");
+        let hash = create_test_hash(&env);
+        let immutable = false;
+        let schema_version = 1;
+
+        assert!(registry
+            .try_set_metadata(&admin, &name, &uri, &hash, &immutable, &schema_version)
+            .is_ok());
+
+        let metadata = registry.get_metadata(&name);
+        assert_eq!(metadata.uri, uri);
+        assert_eq!(metadata.hash, hash);
+        assert_eq!(metadata.immutable, false);
+        assert_eq!(metadata.schema_version, 1);
+        assert!(metadata.updated_at > 0);
+    }
+
+    #[test]
+    fn prevents_updating_immutable_entry() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let registry_id = env.register(RegistryContract, ());
+        let admin = Address::generate(&env);
+        let registry = RegistryContractClient::new(&env, &registry_id);
+
+        registry.initialize(&admin);
+
+        let name = Symbol::new(&env, "immutable_contract");
+        let uri = Bytes::from_slice(&env, b"ipfs://QmImmutable");
+        let hash = create_test_hash(&env);
+        let immutable = true;
+        let schema_version = 1;
+
+        // Create immutable entry
+        assert!(registry
+            .try_set_metadata(&admin, &name, &uri, &hash, &immutable, &schema_version)
+            .is_ok());
+
+        // Try to update it - should fail
+        let new_uri = Bytes::from_slice(&env, b"ipfs://QmNew");
+        assert!(matches!(
+            registry.try_set_metadata(&admin, &name, &new_uri, &hash, &immutable, &schema_version),
+            Err(Ok(Error::ImmutableEntry))
+        ));
+    }
+
+    #[test]
+    fn updates_mutable_entry() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let registry_id = env.register(RegistryContract, ());
+        let admin = Address::generate(&env);
+        let registry = RegistryContractClient::new(&env, &registry_id);
+
+        registry.initialize(&admin);
+
+        let name = Symbol::new(&env, "mutable_contract");
+        let uri1 = Bytes::from_slice(&env, b"ipfs://QmFirst");
+        let hash = create_test_hash(&env);
+        let immutable = false;
+        let schema_version = 1;
+
+        // Create mutable entry
+        assert!(registry
+            .try_set_metadata(&admin, &name, &uri1, &hash, &immutable, &schema_version)
+            .is_ok());
+
+        // Update it - should succeed
+        let uri2 = Bytes::from_slice(&env, b"ipfs://QmSecond");
+        assert!(registry
+            .try_set_metadata(&admin, &name, &uri2, &hash, &immutable, &schema_version)
+            .is_ok());
+
+        let metadata = registry.get_metadata(&name);
+        assert_eq!(metadata.uri, uri2);
+    }
+
+    #[test]
+    fn rejects_invalid_hash_length() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let registry_id = env.register(RegistryContract, ());
+        let admin = Address::generate(&env);
+        let registry = RegistryContractClient::new(&env, &registry_id);
+
+        registry.initialize(&admin);
+
+        let name = Symbol::new(&env, "bad_hash_contract");
+        let uri = Bytes::from_slice(&env, b"ipfs://QmTest");
+        let invalid_hash = Bytes::from_slice(&env, b"short"); // Not 32 bytes
+        let immutable = false;
+        let schema_version = 1;
+
+        assert!(matches!(
+            registry.try_set_metadata(&admin, &name, &uri, &invalid_hash, &immutable, &schema_version),
+            Err(Ok(Error::InvalidHash))
+        ));
+    }
+
+    #[test]
+    fn gets_metadata_hash() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let registry_id = env.register(RegistryContract, ());
+        let admin = Address::generate(&env);
+        let registry = RegistryContractClient::new(&env, &registry_id);
+
+        registry.initialize(&admin);
+
+        let name = Symbol::new(&env, "hash_test");
+        let uri = Bytes::from_slice(&env, b"ipfs://QmHashTest");
+        let hash = create_test_hash(&env);
+        let immutable = false;
+        let schema_version = 1;
+
+        assert!(registry
+            .try_set_metadata(&admin, &name, &uri, &hash, &immutable, &schema_version)
+            .is_ok());
+
+        let retrieved_hash = registry.get_metadata_hash(&name);
+        assert_eq!(retrieved_hash, hash);
+    }
+
+    #[test]
+    fn checks_immutability() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let registry_id = env.register(RegistryContract, ());
+        let admin = Address::generate(&env);
+        let registry = RegistryContractClient::new(&env, &registry_id);
+
+        registry.initialize(&admin);
+
+        let name = Symbol::new(&env, "immutability_test");
+        let uri = Bytes::from_slice(&env, b"ipfs://QmImmutableTest");
+        let hash = create_test_hash(&env);
+        let immutable = true;
+        let schema_version = 1;
+
+        assert!(registry
+            .try_set_metadata(&admin, &name, &uri, &hash, &immutable, &schema_version)
+            .is_ok());
+
+        let is_immutable = registry.is_immutable(&name);
+        assert_eq!(is_immutable, true);
+    }
+
+    #[test]
+    fn gets_full_registry_entry() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let registry_id = env.register(RegistryContract, ());
+        let admin = Address::generate(&env);
+        let contract_addr = Address::generate(&env);
+        let registry = RegistryContractClient::new(&env, &registry_id);
+
+        registry.initialize(&admin);
+
+        let name = Symbol::new(&env, "full_entry");
+        let uri = Bytes::from_slice(&env, b"ipfs://QmFullEntry");
+        let hash = create_test_hash(&env);
+        let immutable = false;
+        let schema_version = 1;
+        let version = 5_u32;
+
+        // Register contract
+        assert!(registry
+            .try_set_contract(&admin, &name, &contract_addr, &version)
+            .is_ok());
+
+        // Register metadata
+        assert!(registry
+            .try_set_metadata(&admin, &name, &uri, &hash, &immutable, &schema_version)
+            .is_ok());
+
+        // Get full entry
+        let entry = registry.get_registry_entry(&name);
+        assert_eq!(entry.contract.address, contract_addr);
+        assert_eq!(entry.contract.version, version);
+        assert_eq!(entry.metadata.uri, uri);
+        assert_eq!(entry.metadata.hash, hash);
+        assert_eq!(entry.metadata.immutable, false);
+        assert_eq!(entry.metadata.schema_version, schema_version);
+    }
+
+    #[test]
+    fn lists_registered_names() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let registry_id = env.register(RegistryContract, ());
+        let admin = Address::generate(&env);
+        let contract1 = Address::generate(&env);
+        let contract2 = Address::generate(&env);
+        let registry = RegistryContractClient::new(&env, &registry_id);
+
+        registry.initialize(&admin);
+
+        let name1 = Symbol::new(&env, "contract_a");
+        let name2 = Symbol::new(&env, "contract_b");
+
+        assert!(registry
+            .try_set_contract(&admin, &name1, &contract1, &1_u32)
+            .is_ok());
+        assert!(registry
+            .try_set_contract(&admin, &name2, &contract2, &1_u32)
+            .is_ok());
+
+        let names = registry.list_names();
+        assert_eq!(names.len(), 2);
+        assert!(names.iter().any(|n| n == name1));
+        assert!(names.iter().any(|n| n == name2));
     }
 }
