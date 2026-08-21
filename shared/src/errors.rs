@@ -38,4 +38,10 @@ pub enum Error {
     BelowThreshold = 14,
     /// The proposal has already been executed.
     AlreadyExecuted = 15,
+    /// Attempted to modify an entry that has been marked immutable.
+    ImmutableEntry = 12,
+    /// The supplied metadata hash is invalid (wrong length or format).
+    InvalidHash = 13,
+    /// No metadata entry exists for the given identifier.
+    MetadataNotFound = 14,
 }
