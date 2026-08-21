@@ -11,7 +11,10 @@ mod logging;
 use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Env, Symbol, Vec};
 use soroban_sdk::U256;
 use fee_calculator::calculate_total_fees;
+use logging::log_trade;
 use slippage_predictor::predict_slippage;
+use soroban_sdk::U256;
+use soroban_sdk::{contract, contractimpl, Env, Symbol, Vec};
 use strategy_executor::execute_strategy;
 use shared::events::emit_action_executed;
 

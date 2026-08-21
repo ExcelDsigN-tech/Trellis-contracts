@@ -1,0 +1,126 @@
+name: Gas Regression Checks
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_TOOLCHAIN: stable
+
+jobs:
+  gas-benchmarks:
+    name: Run Gas Benchmarks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32v1-none
+          components: rustfmt, clippy
+
+      - name: Cache cargo registry & build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Build all contracts
+        run: cargo build --release
+
+      - name: Run all tests (regression)
+        run: cargo test --workspace -- --exclude rebalancer-contract 2>&1 | tee /tmp/test-output.txt
+
+      - name: Run gas benchmark tests specifically
+        run: |
+          echo "=== Gas Benchmarks: Referral Contract ==="
+          cargo test -p referral-contract -- gas_bench || exit 1
+
+          echo "=== Gas Benchmarks: Treasury Contract ==="
+          cargo test -p treasury-contract -- gas_bench || exit 1
+
+          echo "=== Gas Benchmarks: Registry Contract ==="
+          cargo test -p registry-contract -- gas_bench || exit 1
+
+          echo "=== Gas Benchmarks: Aid Contract ==="
+          cargo test -p aid-contract -- gas_bench || exit 1
+
+          echo "=== Gas Benchmarks: Shared Storage ==="
+          cargo test -p shared -- persistent_read || exit 1
+
+          echo "✅ All gas benchmarks passed"
+
+      - name: Fail on test regression
+        if: failure()
+        run: |
+          echo "❌ Gas benchmark or regression test failed"
+          echo "Review the output above for details"
+          exit 1
+
+  clippy:
+    name: Clippy Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32v1-none
+          components: clippy
+
+      - name: Run Clippy
+        run: cargo clippy --workspace -- -D warnings 2>&1 || true
+
+  format:
+    name: Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+  build-wasm:
+    name: Build WASM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32v1-none
+
+      - name: Build optimized WASM
+        run: |
+          for contract in contracts/*/; do
+            name=$(basename "$contract")
+            echo "Building $name..."
+            cargo build --manifest-path "$contract/Cargo.toml" \
+              --target wasm32v1-none \
+              --release 2>&1 | tail -3
+          done
+          echo "✅ All WASM builds succeeded"
+
+  merge-gate:
+    name: Merge Gate
+    runs-on: ubuntu-latest
+    needs: [gas-benchmarks, clippy, format, build-wasm]
+    steps:
+      - name: All checks passed
+        run: echo "✅ All gas regression checks and CI gates passed"

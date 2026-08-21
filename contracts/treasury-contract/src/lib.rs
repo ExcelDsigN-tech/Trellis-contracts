@@ -74,10 +74,11 @@ impl TreasuryContract {
 
     /// Credits `amount` into `category`'s balance. `TreasuryManager` only.
     pub fn deposit(env: Env, caller: Address, category: Symbol, amount: i128) -> Result<(), Error> {
-        auth::require_role(&env, &caller, Role::TreasuryManager)?;
+        // Cheap validation first — avoids auth commit on trivial rejects.
         if amount <= 0 {
             return Err(Error::InvalidArgument);
         }
+        auth::require_role(&env, &caller, Role::TreasuryManager)?;
         let key = (BALANCE, category.clone());
         let balance: i128 = env.storage().instance().get(&key).unwrap_or(0);
         let new_balance = balance.checked_add(amount).ok_or(Error::Overflow)?;
@@ -114,8 +115,9 @@ impl TreasuryContract {
         amount: i128,
         category: Symbol,
     ) -> Result<(), Error> {
-        auth::require_role(&env, &caller, Role::TreasuryManager)?;
-
+        // **Gas optimization**: cheap validation checks first (amount > 0 is
+        // a single integer comparison) before the expensive auth commit.
+        // Failed auth is the most costly error path to reach — delay it.
         if amount <= 0 {
             return Err(Error::InvalidArgument);
         }
@@ -130,6 +132,9 @@ impl TreasuryContract {
         if amount > balance {
             return Err(Error::InsufficientBalance);
         }
+
+        // Auth check last — all cheap validations have passed.
+        auth::require_role(&env, &caller, Role::TreasuryManager)?;
 
         let remaining = balance - amount;
         instance_set(&env, &key, &remaining);
@@ -156,21 +161,25 @@ impl TreasuryContract {
         to: Address,
         amount: i128,
     ) -> Result<(), Error> {
-        if !shared::storage::is_paused(&env) {
-            return Err(Error::NotPaused);
-        }
-        auth::require_admin(&env, &caller)?;
-
+        // **Gas optimization**: cheapest validations first.
         if amount <= 0 {
             return Err(Error::InvalidArgument);
+        }
+        if !shared::storage::is_paused(&env) {
+            return Err(Error::NotPaused);
         }
 
         let key = (BALANCE, RESERVE_CATEGORY);
         let balance: i128 = instance_get(&env, &key).unwrap_or(0);
-        let new_balance = balance.checked_sub(amount).ok_or(Error::InsufficientBalance)?;
+        let new_balance = balance
+            .checked_sub(amount)
+            .ok_or(Error::InsufficientBalance)?;
         if new_balance < 0 {
             return Err(Error::InsufficientBalance);
         }
+
+        // Auth check last — all cheap validations have passed.
+        auth::require_admin(&env, &caller)?;
         instance_set(&env, &key, &new_balance);
 
         events::emit(
@@ -217,10 +226,7 @@ impl TreasuryContract {
     /// - `Error::InsufficientBalance` — the Rewards balance can't cover
     ///   `amount`.
     pub fn distribute_reward(env: Env, recipient: Address, amount: i128) -> Result<(), Error> {
-        let referral_contract: Address =
-            instance_get(&env, &REFERRAL_CONTRACT).ok_or(Error::Unauthorized)?;
-        referral_contract.require_auth();
-
+        // **Gas optimization**: cheap validation before auth commit.
         if amount <= 0 {
             return Err(Error::InvalidArgument);
         }
@@ -230,6 +236,11 @@ impl TreasuryContract {
         if amount > balance {
             return Err(Error::InsufficientBalance);
         }
+
+        // Auth check after all cheap validations pass.
+        let referral_contract: Address =
+            instance_get(&env, &REFERRAL_CONTRACT).ok_or(Error::Unauthorized)?;
+        referral_contract.require_auth();
 
         let remaining = balance - amount;
         instance_set(&env, &key, &remaining);
