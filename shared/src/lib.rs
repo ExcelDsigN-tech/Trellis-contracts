@@ -1,6 +1,9 @@
 #![no_std]
 
 pub mod auth;
+pub mod batch;
+pub mod errors;
+pub mod events;
 pub mod event;
 pub mod math;
 pub mod storage;
@@ -18,13 +21,17 @@ pub enum Error {
 
 // Re-export the most commonly-needed items at crate root for ergonomic use.
 pub use auth::{get_admin, require_admin, require_not_paused, set_admin};
-pub use event::{
-    emit, AID_CLAIMED, AID_CREATED, AID_REFUNDED, AID_SETTLED, COMMISSION_PAID,
-    CONTRACT_PAUSED, CONTRACT_RESUMED, CONTRACT_UPGRADED, PARAMETER_CHANGED,
-    REFERRAL_ACCRUED, REFERRAL_REGISTERED, REFERRER_SET, TIER_CONFIG_SET, TREASURY_DEPOSIT,
-    TREASURY_EMERGENCY_WITHDRAW, TREASURY_SET, TREASURY_WITHDRAW,
-    ActionExecutedEvent, emit_action_executed, emit_module_initialized, emit_permission_changed,
-    ModuleInitializedEvent, PermissionChangedEvent,
+pub use batch::{
+    batch_invoke_no_args, execute_multi_invoke, execute_multi_transfer, multi_transfer_all,
+    BatchConfig, BatchError, BatchMode, BatchResult, BatchTransfer, OperationResult,
+    ABSOLUTE_MAX_BATCH_SIZE, DEFAULT_MAX_BATCH_SIZE,
+};
+pub use errors::Error;
+pub use events::{
+    emit, AID_CLAIMED, AID_CREATED, AID_REFUNDED, AID_SETTLED, COMMISSION_PAID, CONTRACT_PAUSED,
+    CONTRACT_RESUMED, CONTRACT_UPGRADED, PARAMETER_CHANGED, REFERRAL_ACCRUED, REFERRAL_REGISTERED,
+    REFERRER_SET, TIER_CONFIG_SET, TREASURY_DEPOSIT, TREASURY_EMERGENCY_WITHDRAW, TREASURY_SET,
+    TREASURY_WITHDRAW,
 };
 pub use storage::{
     instance_get, instance_has, instance_remove, instance_set, is_paused, persistent_extend_ttl,
