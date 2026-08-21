@@ -11,6 +11,7 @@ const KEY_AIDS: Symbol = symbol_short!("aids");
 use soroban_sdk::{contract, contractimpl, contracterror, token, Address, Env};
 
 use shared::storage::{is_paused, set_paused as shared_set_paused};
+use shared::{emit, AID_CLAIMED, AID_CREATED, AID_REFUNDED};
 
 pub mod storage;
 pub mod types;
@@ -23,6 +24,8 @@ pub use types::{AidRecord, AidStatus};
 // ---------------------------------------------------------------------------
 // Contract-specific error codes (range 100-199 per shared conventions)
 // ---------------------------------------------------------------------------
+
+use soroban_sdk::contracterror;
 
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
@@ -102,9 +105,9 @@ impl AidContract {
         // Checks-effects-interactions: store record before cross-contract call
         let record = AidRecord {
             id: aid_id,
-            donor: donor.clone(),
-            recipient: recipient.clone(),
-            token: token.clone(),
+            donor,
+            recipient,
+            token: token_addr,
             amount,
             expiry_ledger,
             status: AidStatus::Pending,
