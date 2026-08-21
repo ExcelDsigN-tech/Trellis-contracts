@@ -1,6 +1,6 @@
-use soroban_sdk::{symbol_short, Address, BytesN, Env, Symbol};
+use soroban_sdk::{contracttype, symbol_short, Address, BytesN, Env, Symbol};
 
-/// Legacy single-topic constants retained for backward compatibility.
+// Legacy single-topic constants retained for backward compatibility.
 pub const AID_CREATED: Symbol = symbol_short!("aid_crt");
 pub const AID_CLAIMED: Symbol = symbol_short!("aid_clm");
 pub const AID_SETTLED: Symbol = symbol_short!("aid_stl");
@@ -18,6 +18,16 @@ pub const CONTRACT_PAUSED: Symbol = symbol_short!("paused");
 pub const CONTRACT_RESUMED: Symbol = symbol_short!("resumed");
 pub const CONTRACT_UPGRADED: Symbol = symbol_short!("upgraded");
 pub const REFERRAL_REGISTERED: Symbol = symbol_short!("ref_reg");
+pub const PROPOSAL_CREATED: Symbol = symbol_short!("prop_new");
+pub const PROPOSAL_APPROVED: Symbol = symbol_short!("prop_apr");
+pub const PROPOSAL_EXECUTED: Symbol = symbol_short!("prop_exc");
+pub const ROLE_GRANTED: Symbol = symbol_short!("role_grt");
+pub const ROLE_REVOKED: Symbol = symbol_short!("role_rvk");
+
+// Canonical event-logging topic constants.
+pub const EVENT_LOG_INITIALIZED: Symbol = symbol_short!("evt_init");
+pub const EVENT_LOG_ACTION: Symbol = symbol_short!("evt_act");
+pub const EVENT_LOG_PERMISSION: Symbol = symbol_short!("evt_perm");
 
 /// Emits `AidCreated`.
 ///
@@ -178,6 +188,98 @@ pub fn emit_contract_upgraded(
     );
 }
 
+// ---------------------------------------------------------------------------
+// Canonical Event Logging helpers
+// ---------------------------------------------------------------------------
+
+/// Payload for `ModuleInitialized`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ModuleInitializedEvent {
+    pub module: Symbol,
+    pub version: u32,
+    pub caller: Address,
+    pub initialized_at: u64,
+}
+
+/// Emits `ModuleInitialized`.
+///
+/// Topics: `("logging", "init")`
+///
+/// Data: `(Symbol module, u32 version, Address caller, u64 initialized_at)`
+pub fn emit_module_initialized(
+    env: &Env,
+    module: Symbol,
+    version: u32,
+    caller: &Address,
+    initialized_at: u64,
+) {
+    env.events().publish(
+        (symbol_short!("logging"), symbol_short!("init")),
+        (module, version, caller.clone(), initialized_at),
+    );
+}
+
+/// Payload for `ActionExecuted`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ActionExecutedEvent {
+    pub module: Symbol,
+    pub action: Symbol,
+    pub caller: Address,
+    pub success: bool,
+    pub executed_at: u64,
+}
+
+/// Emits `ActionExecuted`.
+///
+/// Topics: `("logging", "action")`
+///
+/// Data: `(Symbol module, Symbol action, Address caller, bool success, u64 executed_at)`
+pub fn emit_action_executed(
+    env: &Env,
+    module: Symbol,
+    action: Symbol,
+    caller: &Address,
+    success: bool,
+    executed_at: u64,
+) {
+    env.events().publish(
+        (symbol_short!("logging"), symbol_short!("action")),
+        (module, action, caller.clone(), success, executed_at),
+    );
+}
+
+/// Payload for `PermissionChanged`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PermissionChangedEvent {
+    pub module: Symbol,
+    pub role: Symbol,
+    pub subject: Address,
+    pub granted: bool,
+    pub changed_at: u64,
+}
+
+/// Emits `PermissionChanged`.
+///
+/// Topics: `("logging", "perm")`
+///
+/// Data: `(Symbol module, Symbol role, Address subject, bool granted, u64 changed_at)`
+pub fn emit_permission_changed(
+    env: &Env,
+    module: Symbol,
+    role: Symbol,
+    subject: &Address,
+    granted: bool,
+    changed_at: u64,
+) {
+    env.events().publish(
+        (symbol_short!("logging"), symbol_short!("perm")),
+        (module, role, subject.clone(), granted, changed_at),
+    );
+}
+
 /// Emits an event using a legacy single-symbol topic.
 ///
 /// New protocol events should use one of the typed helpers above.
@@ -185,13 +287,105 @@ pub fn emit<T: soroban_sdk::IntoVal<Env, soroban_sdk::Val>>(env: &Env, topic: Sy
     env.events().publish((topic,), data);
 }
 
+/// Emits `RoleGranted`.
+///
+/// Topics: `("role", "granted")`
+///
+/// Data: `(admin, grantee, role_name, timestamp)`
+pub fn emit_role_granted(
+    env: &Env,
+    admin: &Address,
+    grantee: &Address,
+    role_name: Symbol,
+    timestamp: u64,
+) {
+    env.events().publish(
+        (symbol_short!("role"), symbol_short!("granted")),
+        (admin.clone(), grantee.clone(), role_name, timestamp),
+    );
+}
+
+/// Emits `RoleRevoked`.
+///
+/// Topics: `("role", "revoked")`
+///
+/// Data: `(admin, grantee, role_name, timestamp)`
+pub fn emit_role_revoked(
+    env: &Env,
+    admin: &Address,
+    grantee: &Address,
+    role_name: Symbol,
+    timestamp: u64,
+) {
+    env.events().publish(
+        (symbol_short!("role"), symbol_short!("revoked")),
+        (admin.clone(), grantee.clone(), role_name, timestamp),
+    );
+}
+
+/// Emits `ProposalCreated`.
+///
+/// Topics: `("proposal", "created")`
+///
+/// Data: `(proposal_id, proposer, action_description, timestamp)`
+pub fn emit_proposal_created(
+    env: &Env,
+    proposal_id: u64,
+    proposer: &Address,
+    action: Symbol,
+    timestamp: u64,
+) {
+    env.events().publish(
+        (symbol_short!("proposal"), symbol_short!("created")),
+        (proposal_id, proposer.clone(), action, timestamp),
+    );
+}
+
+/// Emits `ProposalApproved`.
+///
+/// Topics: `("proposal", "approved")`
+///
+/// Data: `(proposal_id, approver, approval_count, timestamp)`
+pub fn emit_proposal_approved(
+    env: &Env,
+    proposal_id: u64,
+    approver: &Address,
+    approval_count: u32,
+    timestamp: u64,
+) {
+    env.events().publish(
+        (symbol_short!("proposal"), symbol_short!("approved")),
+        (proposal_id, approver.clone(), approval_count, timestamp),
+    );
+}
+
+/// Emits `ProposalExecuted`.
+///
+/// Topics: `("proposal", "executed")`
+///
+/// Data: `(proposal_id, executor, approval_count, timestamp)`
+pub fn emit_proposal_executed(
+    env: &Env,
+    proposal_id: u64,
+    executor: &Address,
+    approval_count: u32,
+    timestamp: u64,
+) {
+    env.events().publish(
+        (symbol_short!("proposal"), symbol_short!("executed")),
+        (proposal_id, executor.clone(), approval_count, timestamp),
+    );
+}
+
 #[cfg(test)]
 mod tests {
-    use super::emit_aid_created;
+    use super::{
+        emit_aid_created, emit_action_executed, emit_module_initialized, emit_permission_changed,
+    };
     use soroban_sdk::{
         contract, contractimpl, symbol_short,
         testutils::{Address as _, Events},
-        Address, Env, FromVal, IntoVal,
+        Address, Env, FromVal, IntoVal, Symbol,
     };
 
     #[contract]
@@ -211,6 +405,38 @@ mod tests {
             emit_aid_created(
                 &env, aid_id, &donor, &recipient, amount, created_at, expires_at,
             );
+        }
+
+        pub fn publish_module_initialized(
+            env: Env,
+            module: Symbol,
+            version: u32,
+            caller: Address,
+            initialized_at: u64,
+        ) {
+            emit_module_initialized(&env, module, version, &caller, initialized_at);
+        }
+
+        pub fn publish_action_executed(
+            env: Env,
+            module: Symbol,
+            action: Symbol,
+            caller: Address,
+            success: bool,
+            executed_at: u64,
+        ) {
+            emit_action_executed(&env, module, action, &caller, success, executed_at);
+        }
+
+        pub fn publish_permission_changed(
+            env: Env,
+            module: Symbol,
+            role: Symbol,
+            subject: Address,
+            granted: bool,
+            changed_at: u64,
+        ) {
+            emit_permission_changed(&env, module, role, &subject, granted, changed_at);
         }
     }
 
@@ -234,12 +460,98 @@ mod tests {
             topics,
             (symbol_short!("aid"), symbol_short!("created"),).into_val(&env)
         );
-        let decoded_data: (u64, Address, Address, i128, u64, u64) =
-            FromVal::from_val(&env, &data);
+        let decoded_data: (u64, Address, Address, i128, u64, u64) = FromVal::from_val(&env, &data);
 
         assert_eq!(
             decoded_data,
             (7u64, donor, recipient, 500i128, 100u64, 1_000u64)
+        );
+    }
+
+    #[test]
+    fn module_initialized_has_stable_topics_and_data() {
+        let env = Env::default();
+        let module = symbol_short!("aid");
+        let caller = Address::generate(&env);
+        let contract_id = env.register(EventTestContract, ());
+        let client = EventTestContractClient::new(&env, &contract_id);
+
+        client.publish_module_initialized(&module, &1, &caller, &1_000);
+
+        let events = env.events().all();
+        assert_eq!(events.len(), 1);
+
+        let (emitter, topics, data) = events.get(0).unwrap();
+
+        assert_eq!(emitter, contract_id);
+        assert_eq!(
+            topics,
+            (symbol_short!("logging"), symbol_short!("init"),).into_val(&env)
+        );
+        let decoded_data: (Symbol, u32, Address, u64) =
+            FromVal::from_val(&env, &data);
+
+        assert_eq!(
+            decoded_data,
+            (module, 1, caller.clone(), 1_000)
+        );
+    }
+
+    #[test]
+    fn action_executed_has_stable_topics_and_data() {
+        let env = Env::default();
+        let module = symbol_short!("aid");
+        let action = symbol_short!("create");
+        let caller = Address::generate(&env);
+        let contract_id = env.register(EventTestContract, ());
+        let client = EventTestContractClient::new(&env, &contract_id);
+
+        client.publish_action_executed(&module, &action, &caller, &true, &1_000);
+
+        let events = env.events().all();
+        assert_eq!(events.len(), 1);
+
+        let (_emitter, topics, data) = events.get(0).unwrap();
+
+        assert_eq!(
+            topics,
+            (symbol_short!("logging"), symbol_short!("action"),).into_val(&env)
+        );
+        let decoded_data: (Symbol, Symbol, Address, bool, u64) =
+            FromVal::from_val(&env, &data);
+
+        assert_eq!(
+            decoded_data,
+            (module, action, caller.clone(), true, 1_000)
+        );
+    }
+
+    #[test]
+    fn permission_changed_has_stable_topics_and_data() {
+        let env = Env::default();
+        let module = symbol_short!("treasury");
+        let role = symbol_short!("manager");
+        let subject = Address::generate(&env);
+        let contract_id = env.register(EventTestContract, ());
+        let client = EventTestContractClient::new(&env, &contract_id);
+
+        client.publish_permission_changed(&module, &role, &subject, &true, &1_000);
+
+        let events = env.events().all();
+        assert_eq!(events.len(), 1);
+
+        let (_emitter, topics, data) = events.get(0).unwrap();
+
+        assert_eq!(
+            topics,
+            (symbol_short!("logging"), symbol_short!("perm"),).into_val(&env)
+        );
+        let decoded_data: (Symbol, Symbol, Address, bool, u64) =
+            FromVal::from_val(&env, &data);
+
+        assert_eq!(
+            decoded_data,
+            (module, role, subject.clone(), true, 1_000)
         );
     }
 }

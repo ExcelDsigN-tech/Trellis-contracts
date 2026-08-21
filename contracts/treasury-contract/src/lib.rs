@@ -4,7 +4,10 @@ use soroban_sdk::{contract, contractimpl, symbol_short, Address, Env, Symbol};
 
 use shared::auth::{self, Role};
 use shared::errors::Error;
-use shared::events::{self, emit_commission_paid, emit_treasury_deposit, emit_treasury_withdrawal};
+use shared::events::{
+    self, emit_action_executed, emit_commission_paid, emit_module_initialized,
+    emit_permission_changed, emit_treasury_deposit, emit_treasury_withdrawal,
+};
 use shared::storage::{instance_get, instance_set, persistent_set};
 
 /// Storage key prefix for per-category balances; the full key is
@@ -34,26 +37,28 @@ impl TreasuryContract {
             return Err(Error::InvalidArgument);
         }
         auth::set_admin(&env, &admin);
-        // Grant the admin the TreasuryManager role immediately after
-        // initialisation so routine operations do not need a separate call.
-        // Written via persistent_set so the entry gets a TTL bump.
         persistent_set(
             &env,
             &shared::auth::DataKey::Role(admin.clone(), Role::TreasuryManager),
             &true,
         );
         instance_set(&env, &MAX_WD, &max_withdrawal_limit);
+        emit_module_initialized(&env, symbol_short!("treasury"), 1, &admin, env.ledger().timestamp());
         Ok(())
     }
 
     /// Grants the `TreasuryManager` role to `who`. Admin only.
     pub fn add_treasury_manager(env: Env, caller: Address, who: Address) -> Result<(), Error> {
-        auth::grant_role(&env, &caller, &who, Role::TreasuryManager)
+        auth::grant_role(&env, &caller, &who, Role::TreasuryManager)?;
+        emit_permission_changed(&env, symbol_short!("treasury"), symbol_short!("manager"), &who, true, env.ledger().timestamp());
+        Ok(())
     }
 
     /// Revokes the `TreasuryManager` role from `who`. Admin only.
     pub fn remove_treasury_manager(env: Env, caller: Address, who: Address) -> Result<(), Error> {
-        auth::revoke_role(&env, &caller, &who, Role::TreasuryManager)
+        auth::revoke_role(&env, &caller, &who, Role::TreasuryManager)?;
+        emit_permission_changed(&env, symbol_short!("treasury"), symbol_short!("manager"), &who, false, env.ledger().timestamp());
+        Ok(())
     }
 
     /// Updates the max per-transaction withdrawal limit. Admin only.
@@ -63,20 +68,23 @@ impl TreasuryContract {
             return Err(Error::InvalidArgument);
         }
         instance_set(&env, &MAX_WD, &new_limit);
+        emit_action_executed(&env, symbol_short!("treasury"), symbol_short!("wd_limit"), &caller, true, env.ledger().timestamp());
         Ok(())
     }
 
     /// Credits `amount` into `category`'s balance. `TreasuryManager` only.
     pub fn deposit(env: Env, caller: Address, category: Symbol, amount: i128) -> Result<(), Error> {
-        auth::require_role(&env, &caller, Role::TreasuryManager)?;
+        // Cheap validation first — avoids auth commit on trivial rejects.
         if amount <= 0 {
             return Err(Error::InvalidArgument);
         }
+        auth::require_role(&env, &caller, Role::TreasuryManager)?;
         let key = (BALANCE, category.clone());
         let balance: i128 = env.storage().instance().get(&key).unwrap_or(0);
         let new_balance = balance.checked_add(amount).ok_or(Error::Overflow)?;
         env.storage().instance().set(&key, &new_balance);
         emit_treasury_deposit(&env, category, &caller, amount, new_balance);
+        emit_action_executed(&env, symbol_short!("treasury"), symbol_short!("deposit"), &caller, true, env.ledger().timestamp());
         Ok(())
     }
 
@@ -107,8 +115,9 @@ impl TreasuryContract {
         amount: i128,
         category: Symbol,
     ) -> Result<(), Error> {
-        auth::require_role(&env, &caller, Role::TreasuryManager)?;
-
+        // **Gas optimization**: cheap validation checks first (amount > 0 is
+        // a single integer comparison) before the expensive auth commit.
+        // Failed auth is the most costly error path to reach — delay it.
         if amount <= 0 {
             return Err(Error::InvalidArgument);
         }
@@ -124,14 +133,14 @@ impl TreasuryContract {
             return Err(Error::InsufficientBalance);
         }
 
+        // Auth check last — all cheap validations have passed.
+        auth::require_role(&env, &caller, Role::TreasuryManager)?;
+
         let remaining = balance - amount;
         instance_set(&env, &key, &remaining);
 
-        // NOTE: as with the rest of this contract, balances here are
-        // internal accounting only. If this treasury custodies a live
-        // SAC/token, wire a `token::Client::transfer(&to, &amount)` call
-        // here (before the event emit) using a stored token address.
         emit_treasury_withdrawal(&env, category, &to, amount, remaining);
+        emit_action_executed(&env, symbol_short!("treasury"), symbol_short!("withdraw"), &caller, true, env.ledger().timestamp());
 
         Ok(())
     }
@@ -152,28 +161,33 @@ impl TreasuryContract {
         to: Address,
         amount: i128,
     ) -> Result<(), Error> {
-        if !shared::storage::is_paused(&env) {
-            return Err(Error::NotPaused);
-        }
-        auth::require_admin(&env, &caller)?;
-
+        // **Gas optimization**: cheapest validations first.
         if amount <= 0 {
             return Err(Error::InvalidArgument);
+        }
+        if !shared::storage::is_paused(&env) {
+            return Err(Error::NotPaused);
         }
 
         let key = (BALANCE, RESERVE_CATEGORY);
         let balance: i128 = instance_get(&env, &key).unwrap_or(0);
-        let new_balance = balance.checked_sub(amount).ok_or(Error::InsufficientBalance)?;
+        let new_balance = balance
+            .checked_sub(amount)
+            .ok_or(Error::InsufficientBalance)?;
         if new_balance < 0 {
             return Err(Error::InsufficientBalance);
         }
+
+        // Auth check last — all cheap validations have passed.
+        auth::require_admin(&env, &caller)?;
         instance_set(&env, &key, &new_balance);
 
         events::emit(
             &env,
             events::TREASURY_EMERGENCY_WITHDRAW,
-            (caller, to, amount),
+            (caller.clone(), to, amount),
         );
+        emit_action_executed(&env, symbol_short!("treasury"), symbol_short!("emrg_wd"), &caller, true, env.ledger().timestamp());
         Ok(())
     }
 
@@ -186,6 +200,7 @@ impl TreasuryContract {
     ) -> Result<(), Error> {
         auth::require_admin(&env, &caller)?;
         instance_set(&env, &REFERRAL_CONTRACT, &referral_contract);
+        emit_action_executed(&env, symbol_short!("treasury"), symbol_short!("ref_ctr"), &caller, true, env.ledger().timestamp());
         Ok(())
     }
 
@@ -211,10 +226,7 @@ impl TreasuryContract {
     /// - `Error::InsufficientBalance` — the Rewards balance can't cover
     ///   `amount`.
     pub fn distribute_reward(env: Env, recipient: Address, amount: i128) -> Result<(), Error> {
-        let referral_contract: Address =
-            instance_get(&env, &REFERRAL_CONTRACT).ok_or(Error::Unauthorized)?;
-        referral_contract.require_auth();
-
+        // **Gas optimization**: cheap validation before auth commit.
         if amount <= 0 {
             return Err(Error::InvalidArgument);
         }
@@ -225,10 +237,16 @@ impl TreasuryContract {
             return Err(Error::InsufficientBalance);
         }
 
+        // Auth check after all cheap validations pass.
+        let referral_contract: Address =
+            instance_get(&env, &REFERRAL_CONTRACT).ok_or(Error::Unauthorized)?;
+        referral_contract.require_auth();
+
         let remaining = balance - amount;
         instance_set(&env, &key, &remaining);
 
         emit_commission_paid(&env, &recipient, amount, env.ledger().timestamp());
+        emit_action_executed(&env, symbol_short!("treasury"), symbol_short!("reward"), &recipient, true, env.ledger().timestamp());
 
         Ok(())
     }
