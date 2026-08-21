@@ -1009,6 +1009,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "rebalancer-contract"
+version = "0.1.0"
+dependencies = [
+ "shared",
+ "soroban-sdk",
+]
+
+[[package]]
 name = "ref-cast"
 version = "1.0.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
