@@ -1,55 +1,43 @@
+use soroban_sdk::{
+    contract, contractimpl, contracterror, panic_with_error, token, symbol_short, Address, Env, Symbol, Map,
+};
+use shared::events::{emit_aid_created, emit_action_executed, emit_module_initialized, emit_permission_changed};
+use shared::{emit, AID_CLAIMED, AID_CREATED, AID_REFUNDED, AID_SETTLED, Error};
+use shared::storage::is_paused;
+
+const KEY_AIDS: Symbol = symbol_short!("aids");
 #![no_std]
 
-use soroban_sdk::{contract, contracterror, contractimpl, token, Address, Env, Vec};
+use soroban_sdk::{contract, contractimpl, contracterror, token, Address, Env};
 
-use shared::{emit, AID_CLAIMED, AID_CREATED, AID_REFUNDED, AID_SETTLED};
 use shared::storage::{is_paused, set_paused as shared_set_paused};
 
 pub mod storage;
 pub mod types;
+pub mod api;
 
-use storage::{
-    append_donor_index, append_recipient_index, get_aid, get_aid_counter, get_donor_index,
-    get_recipient_index, get_token, set_aid, set_aid_counter, set_token,
-};
+use storage::{get_aid, has_aid, set_aid};
 
-// Re-export so test modules (and `use super::*`) have access.
-pub use types::{AidPage, AidRecord, AidStatus};
-
-/// Upper bound for the `limit` argument of paginated queries.
-///
-/// Requests above this value are silently clamped so a single call can never
-/// read an unbounded number of records; this bounds the CPU/memory footprint
-/// (and therefore gas) of every page.  `limit` must be `> 0`.
-pub const MAX_QUERY_LIMIT: u32 = 50;
+pub use types::{AidRecord, AidStatus};
 
 // ---------------------------------------------------------------------------
-// Contract-specific error codes  (range 100-199 per shared/README.md)
+// Contract-specific error codes (range 100-199 per shared conventions)
 // ---------------------------------------------------------------------------
 
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(u32)]
 pub enum AidError {
-    /// Caller is not the authorised recipient / donor / admin.
     Unauthorized = 100,
-    /// The requested aid record was not found.
     NotFound = 101,
-    /// The aid has already been settled.
     AlreadyClaimed = 102,
-    /// The claim window has expired (past `expiry_ledger`).
     Expired = 103,
-    /// The contract is paused; no state-changing operations are allowed.
     Paused = 104,
     /// The aid has not expired yet and cannot be refunded.
     NotExpiredYet = 105,
     /// The aid has already been refunded to the donor.
     AlreadyRefunded = 106,
 }
-
-// ---------------------------------------------------------------------------
-// Contract
-// ---------------------------------------------------------------------------
 
 #[contract]
 pub struct AidContract;
@@ -65,7 +53,8 @@ impl AidContract {
     /// Must be called exactly once immediately after deployment.
     pub fn initialize(env: Env, admin: Address, token: Address) {
         shared::auth::set_admin(&env, &admin);
-        set_token(&env, &token);
+        emit_module_initialized(&env, symbol_short!("aid"), 1, &admin, env.ledger().timestamp());
+        env.storage().instance().set(&storage::DataKey::Token, &token);
     }
 
     // -----------------------------------------------------------------------
@@ -74,10 +63,9 @@ impl AidContract {
 
     /// Create a new aid disbursement and escrow funds from the donor.
     ///
-    /// Transfers `amount` of the configured token from `donor` into this
-    /// contract for safekeeping until the recipient claims or the aid
-    /// expires.  The `aid_id` is allocated from a monotonically-increasing
-    /// counter and returned.
+    /// The aid ID is auto-generated. Transfers `amount` of the configured
+    /// `token` from `donor` into this contract for safekeeping until the
+    /// recipient claims or the aid expires.
     ///
     /// Also appends the new ID to both the donor and recipient indexes so
     /// paginated queries stay consistent.
@@ -90,22 +78,28 @@ impl AidContract {
     ) -> u64 {
         donor.require_auth();
 
+        // Fast-path: cheapest validation first (gas ordering)
         if amount <= 0 {
-            env.panic_with_error(shared::Error::InvalidAmount);
+            panic_with_error!(&env, SharedError::InvalidAmount);
         }
         if expiry_ledger <= env.ledger().sequence() {
+            env.panic_with_error(AidError::NotExpiredYet);
+        }
+
+        // Auto-allocate aid ID via counter (avoids caller-supplied collision)
+        let aid_id = get_aid_counter(&env);
+        if has_aid(&env, aid_id) {
             env.panic_with_error(shared::Error::InvalidArgument);
         }
-        let token = get_token(&env).expect("token not configured");
+        set_aid_counter(&env, aid_id.wrapping_add(1));
 
-        // Escrow funds from donor into contract.
-        token::Client::new(&env, &token).transfer(
-            &donor,
-            &env.current_contract_address(),
-            &amount,
-        );
+        let token: Address = env
+            .storage()
+            .instance()
+            .get(&storage::DataKey::Token)
+            .expect("token not initialised");
 
-        let aid_id = get_aid_counter(&env) + 1;
+        // Checks-effects-interactions: store record before cross-contract call
         let record = AidRecord {
             id: aid_id,
             donor: donor.clone(),
@@ -118,14 +112,32 @@ impl AidContract {
         set_aid(&env, aid_id, &record);
         set_aid_counter(&env, aid_id);
 
-        append_donor_index(&env, &donor, aid_id);
-        append_recipient_index(&env, &recipient, aid_id);
+        let mut aids: Map<u64, AidRecord> = env.storage()
+            .persistent()
+            .get(&KEY_AIDS)
+            .unwrap_or_else(|| Map::new(&env));
+        aids.set(aid_id, record);
+        env.storage().persistent().set(&KEY_AIDS, &aids);
 
-        emit(
+        emit_aid_created(
             &env,
-            AID_CREATED,
-            (aid_id, donor, recipient, amount, expiry_ledger),
+            aid_id,
+            &donor,
+            &recipient,
+            amount,
+            env.ledger().sequence().into(),
+            expiry_ledger.into(),
         );
+
+        emit(&env, AID_CREATED, (aid_id, donor, recipient, amount, expiry_ledger));
+        emit_action_executed(&env, symbol_short!("aid"), symbol_short!("create"), &env.current_contract_address(), true, env.ledger().timestamp());
+        // Escrow funds from donor into contract.
+        token::Client::new(&env, &token).transfer(
+            &donor,
+            &env.current_contract_address(),
+            &amount,
+        );
+
         aid_id
     }
 
@@ -135,31 +147,32 @@ impl AidContract {
 
     /// Claim a pending aid disbursement and transfer funds to the recipient.
     ///
-    /// # Errors
+    /// # Errors (via Result)
     /// - [`AidError::Paused`]         — contract is paused.
     /// - [`AidError::NotFound`]       — `aid_id` does not exist.
     /// - [`AidError::Expired`]        — `expiry_ledger` has passed.
     /// - [`AidError::AlreadyClaimed`] — status is not `Pending`.
-    /// - [`AidError::Unauthorized`]   — `caller` is not the recipient.
-    pub fn claim_aid(env: Env, aid_id: u64, caller: Address) -> Result<(), AidError> {
+    /// - [`AidError::Unauthorized`]   — `recipient` is not the intended recipient.
+    pub fn claim_aid(env: Env, aid_id: u64, recipient: Address) -> Result<(), AidError> {
+        // Pause check first — cheapest read (instance storage, no TTL bump)
         if is_paused(&env) {
             return Err(AidError::Paused);
         }
-        caller.require_auth();
+        recipient.require_auth();
 
         let mut record = get_aid(&env, aid_id).ok_or(AidError::NotFound)?;
 
+        // Sequence of checks ordered by likely failure rate (cheap first)
+        if record.status == AidStatus::Settled || record.status == AidStatus::Refunded {
+            return Err(AidError::AlreadyClaimed);
+        }
         if env.ledger().sequence() > record.expiry_ledger {
             return Err(AidError::Expired);
         }
-        if record.status != AidStatus::Pending {
-            return Err(AidError::AlreadyClaimed);
-        }
-        if caller != record.recipient {
+        if recipient != record.recipient {
             return Err(AidError::Unauthorized);
         }
 
-        // Checks-effects-interactions: write status first, then transfer.
         record.status = AidStatus::Settled;
         set_aid(&env, aid_id, &record);
 
@@ -171,6 +184,7 @@ impl AidContract {
 
         emit(&env, AID_CLAIMED, aid_id);
         emit(&env, AID_SETTLED, aid_id);
+        emit_action_executed(&env, symbol_short!("aid"), symbol_short!("claim_aid"), &env.current_contract_address(), true, env.ledger().timestamp());
         Ok(())
     }
 
@@ -184,30 +198,23 @@ impl AidContract {
     ///
     /// # Errors
     /// - [`AidError::NotFound`]       — `aid_id` does not exist.
-    /// - [`AidError::Unauthorized`]   — `caller` is neither donor nor admin.
     /// - [`AidError::AlreadyClaimed`] — already settled.
-    /// - [`AidError::AlreadyRefunded`]— already refunded.
-    /// - [`AidError::NotExpiredYet`]  — expiry ledger has not passed.
-    pub fn refund_aid(env: Env, caller: Address, aid_id: u64) -> Result<(), AidError> {
+    /// - [`AidError::AlreadyRefunded`] — already refunded.
+    /// - [`AidError::NotExpiredYet`]  — expiry has not yet passed.
+    pub fn refund_aid(env: Env, aid_id: u64) -> Result<(), AidError> {
         let mut record = get_aid(&env, aid_id).ok_or(AidError::NotFound)?;
 
-        let admin = shared::auth::get_admin(&env);
-        if caller != record.donor && caller != admin {
-            return Err(AidError::Unauthorized);
+        // Check status first — avoids expensive ledger read on wrong state
+        match record.status {
+            AidStatus::Settled => return Err(AidError::AlreadyClaimed),
+            AidStatus::Refunded => return Err(AidError::AlreadyRefunded),
+            AidStatus::Pending => {} // continue
         }
-        caller.require_auth();
 
-        if record.status == AidStatus::Settled {
-            return Err(AidError::AlreadyClaimed);
-        }
-        if record.status == AidStatus::Refunded {
-            return Err(AidError::AlreadyRefunded);
-        }
         if env.ledger().sequence() <= record.expiry_ledger {
             return Err(AidError::NotExpiredYet);
         }
 
-        // Checks-effects-interactions.
         record.status = AidStatus::Refunded;
         set_aid(&env, aid_id, &record);
 
@@ -218,58 +225,29 @@ impl AidContract {
         );
 
         emit(&env, AID_REFUNDED, aid_id);
+        emit_action_executed(&env, symbol_short!("aid"), symbol_short!("refund"), &env.current_contract_address(), true, env.ledger().timestamp());
         Ok(())
     }
 
-    // -----------------------------------------------------------------------
-    // Queries
-    // -----------------------------------------------------------------------
-
-    /// Return the aid record for `aid_id`, or `None` if it does not exist.
     pub fn get_aid(env: Env, aid_id: u64) -> Option<AidRecord> {
         storage::get_aid(&env, aid_id)
     }
 
-    /// Page through all aids created by `donor`, oldest first.
-    ///
-    /// * `cursor` — offset into the donor's index; start at `0`.
-    /// * `limit`  — page size; must be `> 0` and is clamped to
-    ///   [`MAX_QUERY_LIMIT`].
-    ///
-    /// Returns up to `limit` records plus `next_cursor` (`None` when no
-    /// further pages exist).
-    ///
-    /// # Panics
-    /// Panics with [`shared::Error::InvalidArgument`] when `limit == 0`.
-    pub fn get_aids_by_donor(env: Env, donor: Address, cursor: u32, limit: u32) -> AidPage {
-        if limit == 0 {
-            env.panic_with_error(shared::Error::InvalidArgument);
-        }
-        let ids = get_donor_index(&env, &donor);
-        paginate(&env, &ids, cursor, limit)
-    }
-
-    /// Page through all aids assigned to `recipient`, oldest first.
-    ///
-    /// Same cursor/limit semantics as [`Self::get_aids_by_donor`].
-    ///
-    /// # Panics
-    /// Panics with [`shared::Error::InvalidArgument`] when `limit == 0`.
-    pub fn get_aids_by_recipient(env: Env, recipient: Address, cursor: u32, limit: u32) -> AidPage {
-        if limit == 0 {
-            env.panic_with_error(shared::Error::InvalidArgument);
-        }
-        let ids = get_recipient_index(&env, &recipient);
-        paginate(&env, &ids, cursor, limit)
-    }
-
+    /// Set the paused state of the contract.
     // -----------------------------------------------------------------------
     // Admin controls
     // -----------------------------------------------------------------------
 
-    /// Pause or resume the contract.  Admin only.
-    pub fn set_paused(env: Env, caller: Address, paused: bool) {
-        shared::auth::require_admin(&env, &caller).expect("unauthorized");
+    /// Pause or resume the contract. Admin only.
+    pub fn set_paused(env: Env, admin: Address, paused: bool) {
+        let contract_admin = shared::auth::get_admin(&env);
+        if admin != contract_admin {
+            env.panic_with_error(shared::Error::Unauthorized);
+        }
+        admin.require_auth();
+
+        env.storage().instance().set(&Symbol::new(&env, "paused"), &paused);
+        emit_permission_changed(&env, symbol_short!("aid"), symbol_short!("paused"), &admin, paused, env.ledger().timestamp());
         shared_set_paused(&env, paused);
     }
 }
@@ -302,3 +280,4 @@ fn paginate(env: &Env, ids: &Vec<u64>, cursor: u32, limit: u32) -> AidPage {
 
 #[cfg(test)]
 mod tests;
+

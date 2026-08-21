@@ -472,6 +472,14 @@ ContractResumed
 
 ContractUpgraded
 
+ModuleInitialized
+
+ActionExecuted
+
+PermissionChanged
+
+Off-chain indexers should match the stable two-part topic tuples and decode the typed payloads documented in `shared/README.md`.
+
 ---
 
 # Future Roadmap

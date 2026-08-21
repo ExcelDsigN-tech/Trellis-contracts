@@ -2,7 +2,7 @@ use soroban_sdk::{contracttype, Address, Vec};
 
 /// Lifecycle state of an aid record.
 #[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AidStatus {
     /// Escrowed, waiting for a valid claim.
     Pending,
