@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, Address};
+use soroban_sdk::{contracttype, Address, Vec};
 
 /// Lifecycle state of an aid record.
 #[contracttype]
@@ -15,7 +15,7 @@ pub enum AidStatus {
 /// A single aid disbursement record, escrowed inside this contract until
 /// claimed by the recipient (or refunded to the donor after expiry).
 #[contracttype]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AidRecord {
     pub id: u64,
     pub donor: Address,
@@ -25,4 +25,15 @@ pub struct AidRecord {
     /// Ledger sequence after which the aid can no longer be claimed.
     pub expiry_ledger: u32,
     pub status: AidStatus,
+}
+
+/// One page of results from a paginated aid query.
+///
+/// Pass `next_cursor` back as the `cursor` argument to fetch the following
+/// page; `None` means the result set is exhausted.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AidPage {
+    pub records: Vec<AidRecord>,
+    pub next_cursor: Option<u32>,
 }

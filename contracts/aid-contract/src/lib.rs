@@ -33,9 +33,9 @@ pub enum AidError {
     AlreadyClaimed = 102,
     Expired = 103,
     Paused = 104,
-    /// The expiry has not yet passed (refund attempted too early).
+    /// The aid has not expired yet and cannot be refunded.
     NotExpiredYet = 105,
-    /// The aid has already been refunded.
+    /// The aid has already been refunded to the donor.
     AlreadyRefunded = 106,
 }
 
@@ -48,7 +48,7 @@ impl AidContract {
     // Lifecycle
     // -----------------------------------------------------------------------
 
-    /// Initialise the contract, storing the admin address and token.
+    /// Initialise the contract with an admin and the escrow token.
     ///
     /// Must be called exactly once immediately after deployment.
     pub fn initialize(env: Env, admin: Address, token: Address) {
@@ -67,7 +67,8 @@ impl AidContract {
     /// `token` from `donor` into this contract for safekeeping until the
     /// recipient claims or the aid expires.
     ///
-    /// Returns the newly allocated `aid_id`.
+    /// Also appends the new ID to both the donor and recipient indexes so
+    /// paginated queries stay consistent.
     pub fn create_aid(
         env: Env,
         donor: Address,
@@ -109,6 +110,7 @@ impl AidContract {
             status: AidStatus::Pending,
         };
         set_aid(&env, aid_id, &record);
+        set_aid_counter(&env, aid_id);
 
         let mut aids: Map<u64, AidRecord> = env.storage()
             .persistent()
@@ -192,8 +194,7 @@ impl AidContract {
 
     /// Refund an expired, unclaimed aid disbursement to the original donor.
     ///
-    /// Anyone may call this after expiry to trigger a refund; it is not
-    /// gated to the admin so expired funds cannot be held hostage.
+    /// Only the donor or the admin may trigger the refund.
     ///
     /// # Errors
     /// - [`AidError::NotFound`]       — `aid_id` does not exist.
@@ -248,6 +249,32 @@ impl AidContract {
         env.storage().instance().set(&Symbol::new(&env, "paused"), &paused);
         emit_permission_changed(&env, symbol_short!("aid"), symbol_short!("paused"), &admin, paused, env.ledger().timestamp());
         shared_set_paused(&env, paused);
+    }
+}
+
+/// Slice `ids` into one page of resolved [`AidRecord`]s.
+///
+/// Records whose storage entries were evicted are skipped without stalling
+/// the cursor, so pagination always makes forward progress.
+fn paginate(env: &Env, ids: &Vec<u64>, cursor: u32, limit: u32) -> AidPage {
+    let effective_limit = if limit > MAX_QUERY_LIMIT {
+        MAX_QUERY_LIMIT
+    } else {
+        limit
+    };
+    let total = ids.len();
+    let mut records = Vec::new(env);
+    let mut index = cursor;
+    while index < total && records.len() < effective_limit {
+        if let Some(record) = get_aid(env, ids.get(index).unwrap()) {
+            records.push_back(record);
+        }
+        index += 1;
+    }
+    let next_cursor = if index < total { Some(index) } else { None };
+    AidPage {
+        records,
+        next_cursor,
     }
 }
 
