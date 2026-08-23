@@ -10,8 +10,10 @@ pub mod helpers;
 pub mod simulation;
 pub mod fuzzing;
 pub mod examples;
+pub mod upgrade;
 
 pub use mocks::*;
 pub use helpers::*;
 pub use simulation::*;
 pub use fuzzing::*;
+pub use upgrade::*;
