@@ -287,6 +287,104 @@ pub fn emit<T: soroban_sdk::IntoVal<Env, soroban_sdk::Val>>(env: &Env, topic: Sy
     env.events().publish((topic,), data);
 }
 
+// ---------------------------------------------------------------------------
+// Upgradeability event helpers
+// ---------------------------------------------------------------------------
+
+/// Topics: ("upgrade", "registered")
+pub fn emit_contract_registered(
+    env: &Env,
+    contract_id: &Address,
+    name: Symbol,
+    version: u32,
+    wasm_hash: &BytesN<32>,
+    registered_at: u64,
+) {
+    env.events().publish(
+        (symbol_short!("upgrade"), symbol_short!("registered")),
+        (
+            contract_id.clone(),
+            name,
+            version,
+            wasm_hash.clone(),
+            registered_at,
+        ),
+    );
+}
+
+/// Topics: ("upgrade", "proposed")
+pub fn emit_upgrade_proposed(
+    env: &Env,
+    proposal_id: u64,
+    contract_id: &Address,
+    new_version: u32,
+    proposer: &Address,
+    proposed_at: u64,
+) {
+    env.events().publish(
+        (symbol_short!("upgrade"), symbol_short!("proposed")),
+        (
+            proposal_id,
+            contract_id.clone(),
+            new_version,
+            proposer.clone(),
+            proposed_at,
+        ),
+    );
+}
+
+/// Topics: ("upgrade", "executed")
+pub fn emit_upgrade_executed(
+    env: &Env,
+    proposal_id: u64,
+    contract_id: &Address,
+    old_version: u32,
+    new_version: u32,
+    executor: &Address,
+    executed_at: u64,
+) {
+    env.events().publish(
+        (symbol_short!("upgrade"), symbol_short!("executed")),
+        (
+            proposal_id,
+            contract_id.clone(),
+            old_version,
+            new_version,
+            executor.clone(),
+            executed_at,
+        ),
+    );
+}
+
+/// Topics: ("upgrade", "hook_set")
+pub fn emit_migration_hook_set(env: &Env, contract_id: &Address, hook_addr: &Address, set_at: u64) {
+    env.events().publish(
+        (symbol_short!("upgrade"), symbol_short!("hook_set")),
+        (contract_id.clone(), hook_addr.clone(), set_at),
+    );
+}
+
+/// Topics: ("upgrade", "rolledback")
+pub fn emit_upgrade_rolled_back(
+    env: &Env,
+    contract_id: &Address,
+    from_version: u32,
+    to_version: u32,
+    executor: &Address,
+    rolled_back_at: u64,
+) {
+    env.events().publish(
+        (symbol_short!("upgrade"), symbol_short!("rollback")),
+        (
+            contract_id.clone(),
+            from_version,
+            to_version,
+            executor.clone(),
+            rolled_back_at,
+        ),
+    );
+}
+
 /// Emits `RoleGranted`.
 ///
 /// Topics: `("role", "granted")`
@@ -380,7 +478,7 @@ pub fn emit_proposal_executed(
 #[cfg(test)]
 mod tests {
     use super::{
-        emit_aid_created, emit_action_executed, emit_module_initialized, emit_permission_changed,
+        emit_action_executed, emit_aid_created, emit_module_initialized, emit_permission_changed,
     };
     use soroban_sdk::{
         contract, contractimpl, symbol_short,
@@ -488,13 +586,9 @@ mod tests {
             topics,
             (symbol_short!("logging"), symbol_short!("init"),).into_val(&env)
         );
-        let decoded_data: (Symbol, u32, Address, u64) =
-            FromVal::from_val(&env, &data);
+        let decoded_data: (Symbol, u32, Address, u64) = FromVal::from_val(&env, &data);
 
-        assert_eq!(
-            decoded_data,
-            (module, 1, caller.clone(), 1_000)
-        );
+        assert_eq!(decoded_data, (module, 1, caller.clone(), 1_000));
     }
 
     #[test]
@@ -517,13 +611,9 @@ mod tests {
             topics,
             (symbol_short!("logging"), symbol_short!("action"),).into_val(&env)
         );
-        let decoded_data: (Symbol, Symbol, Address, bool, u64) =
-            FromVal::from_val(&env, &data);
+        let decoded_data: (Symbol, Symbol, Address, bool, u64) = FromVal::from_val(&env, &data);
 
-        assert_eq!(
-            decoded_data,
-            (module, action, caller.clone(), true, 1_000)
-        );
+        assert_eq!(decoded_data, (module, action, caller.clone(), true, 1_000));
     }
 
     #[test]
@@ -546,12 +636,8 @@ mod tests {
             topics,
             (symbol_short!("logging"), symbol_short!("perm"),).into_val(&env)
         );
-        let decoded_data: (Symbol, Symbol, Address, bool, u64) =
-            FromVal::from_val(&env, &data);
+        let decoded_data: (Symbol, Symbol, Address, bool, u64) = FromVal::from_val(&env, &data);
 
-        assert_eq!(
-            decoded_data,
-            (module, role, subject.clone(), true, 1_000)
-        );
+        assert_eq!(decoded_data, (module, role, subject.clone(), true, 1_000));
     }
 }
