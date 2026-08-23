@@ -8,6 +8,7 @@ members = [
     "contracts/governance-contract",
     "contracts/oracle-contract",
     "contracts/registry-contract",
+    "contracts/upgradeability",
     "shared",
     "contracts/rebalancer-contract",
     "testing",
