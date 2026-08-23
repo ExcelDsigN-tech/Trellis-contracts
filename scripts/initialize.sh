@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Initialise all deployed contracts.
-# Usage: ./scripts/initialize.sh <admin_address> <aid_id> <treasury_id> <referral_id> <governance_id> <oracle_id> <registry_id>
+# Usage: ./scripts/initialize.sh <admin_address> <aid_id> <treasury_id> <referral_id> <governance_id> <oracle_id> <registry_id> <upgradeability_id>
 set -euo pipefail
 
 ADMIN="${1:?admin_address required}"
@@ -10,6 +10,7 @@ REFERRAL_ID="${4:?referral_contract_id required}"
 GOVERNANCE_ID="${5:?governance_contract_id required}"
 ORACLE_ID="${6:?oracle_contract_id required}"
 REGISTRY_ID="${7:?registry_contract_id required}"
+UPGRADEABILITY_ID="${8:-}"
 
 for ID in "${AID_ID}" "${TREASURY_ID}" "${REFERRAL_ID}" "${GOVERNANCE_ID}" "${ORACLE_ID}" "${REGISTRY_ID}"; do
   echo "Initialising contract ${ID}..."
@@ -19,3 +20,13 @@ for ID in "${AID_ID}" "${TREASURY_ID}" "${REFERRAL_ID}" "${GOVERNANCE_ID}" "${OR
     --source admin \
     -- initialize --admin "${ADMIN}"
 done
+
+# Initialise the Upgradeability registry if provided.
+if [[ -n "${UPGRADEABILITY_ID}" ]]; then
+  echo "Initialising Upgradeability registry ${UPGRADEABILITY_ID}..."
+  soroban contract invoke \
+    --id "${UPGRADEABILITY_ID}" \
+    --network testnet \
+    --source admin \
+    -- initialize --admin "${ADMIN}"
+fi
