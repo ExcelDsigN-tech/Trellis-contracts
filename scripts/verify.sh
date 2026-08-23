@@ -11,6 +11,7 @@ CONTRACTS=(
   "governance_contract"
   "oracle_contract"
   "registry_contract"
+  "upgradeability"
 )
 
 PASS=0
