@@ -1,3 +1,4 @@
+#![no_std]
 use soroban_sdk::{
     contract, contractimpl, contracterror, panic_with_error, token, symbol_short, Address, Env, Symbol, Map,
 };
@@ -6,7 +7,6 @@ use shared::{emit, AID_CLAIMED, AID_CREATED, AID_REFUNDED, AID_SETTLED, Error};
 use shared::storage::is_paused;
 
 const KEY_AIDS: Symbol = symbol_short!("aids");
-#![no_std]
 
 use soroban_sdk::{contract, contractimpl, contracterror, token, Address, Env};
 
@@ -51,13 +51,108 @@ impl AidContract {
     // Lifecycle
     // -----------------------------------------------------------------------
 
-    /// Initialise the contract with an admin and the escrow token.
+    /// Initialize the contract with configuration.
     ///
     /// Must be called exactly once immediately after deployment.
-    pub fn initialize(env: Env, admin: Address, token: Address) {
+    ///
+    /// # Arguments
+    /// * `admin` - The admin address with governance privileges.
+    /// * `treasury` - The treasury address for fees or emergency withdrawals.
+    /// * `token` - The accepted escrow token address.
+    /// * `default_expiry_secs` - Default expiration time in seconds for new aids.
+    ///
+    /// # Errors
+    /// * [`shared::Error::AlreadyInitialized`] - If called more than once.
+    pub fn initialize(
+        env: Env,
+        admin: Address,
+        treasury: Address,
+        token: Address,
+        default_expiry_secs: u64,
+    ) -> Result<(), shared::Error> {
+        // Guard against re-initialization
+        if storage::is_initialized(&env) {
+            return Err(shared::Error::AlreadyInitialized);
+        }
+
+        admin.require_auth();
+
+        // Store configuration
         shared::auth::set_admin(&env, &admin);
-        emit_module_initialized(&env, symbol_short!("aid"), 1, &admin, env.ledger().timestamp());
-        env.storage().instance().set(&storage::DataKey::Token, &token);
+        storage::set_treasury(&env, &treasury);
+        storage::set_token(&env, &token);
+        storage::set_default_expiry(&env, default_expiry_secs);
+        storage::set_initialized(&env);
+
+        emit_module_initialized(
+            &env,
+            symbol_short!("aid"),
+            1,
+            &admin,
+            env.ledger().timestamp(),
+        );
+
+        Ok(())
+    }
+
+    /// Get the admin address.
+    pub fn get_admin(env: Env) -> Address {
+        shared::auth::get_admin(&env)
+    }
+
+    /// Get the treasury address.
+    pub fn get_treasury(env: Env) -> Option<Address> {
+        storage::get_treasury(&env)
+    }
+
+    /// Get the escrow token address.
+    pub fn get_token(env: Env) -> Option<Address> {
+        storage::get_token(&env)
+    }
+
+    /// Get the default expiry in seconds.
+    pub fn get_default_expiry(env: Env) -> Option<u64> {
+        storage::get_default_expiry(&env)
+    }
+
+    /// Check if the contract is initialized.
+    pub fn is_initialized(env: Env) -> bool {
+        storage::is_initialized(&env)
+    }
+
+    /// Update configuration (admin only).
+    ///
+    /// # Arguments
+    /// * `admin` - Must be the current admin.
+    /// * `treasury` - New treasury address (None = keep existing).
+    /// * `default_expiry_secs` - New default expiry (None = keep existing).
+    ///
+    /// # Errors
+    /// * [`shared::Error::Unauthorized`] - If caller is not admin.
+    pub fn update_config(
+        env: Env,
+        admin: Address,
+        treasury: Option<Address>,
+        default_expiry_secs: Option<u64>,
+    ) -> Result<(), shared::Error> {
+        // Verify admin authorization
+        let current_admin = shared::auth::get_admin(&env);
+        if admin != current_admin {
+            return Err(shared::Error::Unauthorized);
+        }
+        admin.require_auth();
+
+        // Update treasury if provided
+        if let Some(t) = treasury {
+            storage::set_treasury(&env, &t);
+        }
+
+        // Update default expiry if provided
+        if let Some(e) = default_expiry_secs {
+            storage::set_default_expiry(&env, e);
+        }
+
+        Ok(())
     }
 
     // -----------------------------------------------------------------------
