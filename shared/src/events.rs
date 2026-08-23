@@ -301,7 +301,7 @@ pub fn emit_contract_registered(
     registered_at: u64,
 ) {
     env.events().publish(
-        (symbol_short!("upgrade"), symbol_short!("registered")),
+        (symbol_short!("upgrade"), symbol_short!("upg_reg")),
         (
             contract_id.clone(),
             name,

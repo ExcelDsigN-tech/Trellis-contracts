@@ -23,13 +23,13 @@
 
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, symbol_short, Address, BytesN, Env,
-    Symbol, Vec,
+    IntoVal, Symbol, Val, Vec,
 };
 
 use shared::auth::{self, Role};
 use shared::errors::Error;
 use shared::events;
-use shared::storage::{instance_get, instance_set, persistent_set};
+use shared::storage::{instance_get, instance_has, instance_remove, instance_set, persistent_set};
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -331,11 +331,11 @@ impl UpgradeabilityContract {
     ) -> Result<(), UpgradeError> {
         require_admin_role(&env, &caller)?;
 
-        let mut entry: RegistryEntry = instance_get(&env, &(KEY_REG_ENTRY, contract_id))
+        let mut entry: RegistryEntry = instance_get(&env, &(KEY_REG_ENTRY, contract_id.clone()))
             .ok_or(UpgradeError::ContractNotRegistered)?;
 
         entry.migration_hook = Some(hook_addr.clone());
-        instance_set(&env, &(KEY_REG_ENTRY, contract_id), &entry);
+        instance_set(&env, &(KEY_REG_ENTRY, contract_id.clone()), &entry);
 
         // Also store under a separate key for easy lookup.
         instance_set(&env, &(KEY_HOOK, contract_id.clone()), &hook_addr);
@@ -373,7 +373,7 @@ impl UpgradeabilityContract {
     ) -> Result<u64, UpgradeError> {
         require_upgrader_role(&env, &caller)?;
 
-        let entry: RegistryEntry = instance_get(&env, &(KEY_REG_ENTRY, contract_id))
+        let entry: RegistryEntry = instance_get(&env, &(KEY_REG_ENTRY, contract_id.clone()))
             .ok_or(UpgradeError::ContractNotRegistered)?;
 
         // Validate: new version must be greater than current.
@@ -408,7 +408,7 @@ impl UpgradeabilityContract {
         };
 
         instance_set(&env, &(KEY_UPG_PROP, proposal_id), &proposal);
-        instance_set(&env, &(KEY_PENDING, contract_id), &proposal_id);
+        instance_set(&env, &(KEY_PENDING, contract_id.clone()), &proposal_id);
 
         events::emit_upgrade_proposed(
             &env,
@@ -538,8 +538,9 @@ impl UpgradeabilityContract {
         contract_id: Address,
     ) -> Result<UpgradeStatus, UpgradeError> {
         // Verify contract is registered.
-        instance_has(&env, &(KEY_REG_ENTRY, contract_id.clone()))
-            .ok_or(UpgradeError::ContractNotRegistered)?;
+        if !instance_has(&env, &(KEY_REG_ENTRY, contract_id.clone())) {
+            return Err(UpgradeError::ContractNotRegistered);
+        }
 
         if let Some(proposal_id) = instance_get::<_, u64>(&env, &(KEY_PENDING, contract_id)) {
             Ok(UpgradeStatus::Pending(proposal_id))
@@ -556,7 +557,8 @@ impl UpgradeabilityContract {
         contract_id: Address,
         max_results: u32,
     ) -> Vec<UpgradeRecord> {
-        let entry: Option<RegistryEntry> = instance_get(&env, &(KEY_REG_ENTRY, contract_id));
+        let entry: Option<RegistryEntry> =
+            instance_get(&env, &(KEY_REG_ENTRY, contract_id.clone()));
         if entry.is_none() {
             return Vec::new(&env);
         }
@@ -588,7 +590,7 @@ impl UpgradeabilityContract {
         caller: Address,
         proposal_id: u64,
     ) -> Result<(), UpgradeError> {
-        let mut proposal: UpgradeProposal = instance_get(&env, &(KEY_UPG_PROP, proposal_id))
+        let proposal: UpgradeProposal = instance_get(&env, &(KEY_UPG_PROP, proposal_id))
             .ok_or(UpgradeError::ProposalNotFound)?;
 
         if proposal.executed {
@@ -694,21 +696,20 @@ fn execute_pre_upgrade_hook(
 ) -> Result<(), UpgradeError> {
     // Cross-contract call to the migration hook.
     // The hook contract must implement: fn pre_upgrade(env, old_version: u32, new_version: u32) -> bool
-    let result: Result<bool, _> = env.invoke_contract(
-        hook_addr,
-        &symbol_short!("pre_upg"),
-        (old_version, new_version),
-    );
+    let args: soroban_sdk::Vec<Val> =
+        soroban_sdk::Vec::from_array(env, [old_version.into_val(env), new_version.into_val(env)]);
+    let result =
+        env.try_invoke_contract::<bool, UpgradeError>(hook_addr, &symbol_short!("pre_upg"), args);
 
     match result {
-        Ok(approved) => {
+        Ok(Ok(approved)) => {
             if approved {
                 Ok(())
             } else {
                 Err(UpgradeError::MigrationHookFailed)
             }
         }
-        Err(_) => Err(UpgradeError::MigrationHookFailed),
+        _ => Err(UpgradeError::MigrationHookFailed),
     }
 }
 
@@ -722,13 +723,15 @@ fn execute_post_upgrade_hook(
     old_version: u32,
     new_version: u32,
 ) -> Result<(), UpgradeError> {
-    let result: Result<(), _> = env.invoke_contract(
-        hook_addr,
-        &symbol_short!("pst_upg"),
-        (old_version, new_version),
-    );
+    let args: soroban_sdk::Vec<Val> =
+        soroban_sdk::Vec::from_array(env, [old_version.into_val(env), new_version.into_val(env)]);
+    let result =
+        env.try_invoke_contract::<(), UpgradeError>(hook_addr, &symbol_short!("pst_upg"), args);
 
-    result.map_err(|_| UpgradeError::MigrationHookFailed)
+    match result {
+        Ok(Ok(())) => Ok(()),
+        _ => Err(UpgradeError::MigrationHookFailed),
+    }
 }
 
 // ---------------------------------------------------------------------------

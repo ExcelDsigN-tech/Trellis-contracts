@@ -1,17 +1,16 @@
+use soroban_sdk::{symbol_short, Env, IntoVal, Symbol, Val};
 
-use soroban_sdk::{Env, Symbol, IntoVal, Val};
+pub const AID_CREATED: Symbol = symbol_short!("aid_crt");
+pub const AID_CLAIMED: Symbol = symbol_short!("aid_clm");
+pub const AID_SETTLED: Symbol = symbol_short!("aid_stl");
+pub const AID_REFUNDED: Symbol = symbol_short!("aid_ref");
 
-pub const AID_CREATED: Symbol = Symbol::new("aid_created");
-pub const AID_CLAIMED: Symbol = Symbol::new("aid_claimed");
-pub const AID_SETTLED: Symbol = Symbol::new("aid_settled");
-pub const AID_REFUNDED: Symbol = Symbol::new("aid_refunded");
+pub const CONTRACT_UPGRADED: Symbol = symbol_short!("upgraded");
+pub const CONTRACT_PAUSED: Symbol = symbol_short!("paused");
+pub const CONTRACT_RESUMED: Symbol = symbol_short!("resumed");
 
-pub const CONTRACT_UPGRADED: Symbol = Symbol::new("contract_upgraded");
-pub const CONTRACT_PAUSED: Symbol = Symbol::new("contract_paused");
-pub const CONTRACT_RESUMED: Symbol = Symbol::new("contract_resumed");
-
-pub const PARAMETER_CHANGED: Symbol = Symbol::new("parameter_changed");
-pub const COMMISSION_PAID: Symbol = Symbol::new("commission_paid");
+pub const PARAMETER_CHANGED: Symbol = symbol_short!("param_chg");
+pub const COMMISSION_PAID: Symbol = symbol_short!("com_paid");
 
 pub fn emit<T: IntoVal<Env, Val>>(env: &Env, topic: Symbol, data: T) {
     env.events().publish((topic,), data);

@@ -39,11 +39,11 @@ pub enum Error {
     /// The proposal has already been executed.
     AlreadyExecuted = 15,
     /// Attempted to modify an entry that has been marked immutable.
-    ImmutableEntry = 12,
+    ImmutableEntry = 16,
     /// The supplied metadata hash is invalid (wrong length or format).
-    InvalidHash = 13,
+    InvalidHash = 17,
     /// No metadata entry exists for the given identifier.
-    MetadataNotFound = 14,
+    MetadataNotFound = 18,
 
     // ── Upgradeability errors (900–920) ──────────────────────────────────
     /// The target contract is not registered in the upgrade registry.
