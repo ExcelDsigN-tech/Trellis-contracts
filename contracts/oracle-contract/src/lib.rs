@@ -12,6 +12,12 @@ impl OracleContract {
     /// Initialise the contract, setting the admin address.
     pub fn initialize(env: Env, admin: Address) {
         shared::auth::set_admin(&env, &admin);
-        emit_module_initialized(&env, symbol_short!("oracle"), 1, &admin, env.ledger().timestamp());
+        emit_module_initialized(
+            &env,
+            symbol_short!("oracle"),
+            1,
+            &admin,
+            env.ledger().timestamp(),
+        );
     }
 }

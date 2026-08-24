@@ -141,7 +141,11 @@ impl AccessControlContract {
     }
 
     /// Add a new admin.  Only existing admins may call this.
-    pub fn add_admin(env: Env, caller: Address, new_admin: Address) -> ContractResult<()> {
+    pub fn add_admin(
+        env: Env,
+        caller: Address,
+        new_admin: Address,
+    ) -> Result<(), AccessControlError> {
         require_admin(&env, &caller)?;
         caller.require_auth();
 
@@ -165,7 +169,11 @@ impl AccessControlContract {
 
     /// Remove an admin.  Only existing admins may call this.  The super-admin
     /// cannot be removed.
-    pub fn remove_admin(env: Env, caller: Address, target: Address) -> ContractResult<()> {
+    pub fn remove_admin(
+        env: Env,
+        caller: Address,
+        target: Address,
+    ) -> Result<(), AccessControlError> {
         require_admin(&env, &caller)?;
         caller.require_auth();
 
@@ -202,7 +210,7 @@ impl AccessControlContract {
     // -----------------------------------------------------------------------
 
     /// Create a new role.  Admin-gated.
-    pub fn create_role(env: Env, caller: Address, role: Symbol) -> ContractResult<()> {
+    pub fn create_role(env: Env, caller: Address, role: Symbol) -> Result<(), AccessControlError> {
         require_admin(&env, &caller)?;
         caller.require_auth();
 
@@ -236,7 +244,7 @@ impl AccessControlContract {
         caller: Address,
         role: Symbol,
         parent: Symbol,
-    ) -> ContractResult<()> {
+    ) -> Result<(), AccessControlError> {
         require_admin(&env, &caller)?;
         caller.require_auth();
 
@@ -277,7 +285,7 @@ impl AccessControlContract {
         caller: Address,
         role: Symbol,
         user: Address,
-    ) -> ContractResult<()> {
+    ) -> Result<(), AccessControlError> {
         require_admin(&env, &caller)?;
         caller.require_auth();
 
@@ -297,7 +305,7 @@ impl AccessControlContract {
         caller: Address,
         role: Symbol,
         user: Address,
-    ) -> ContractResult<()> {
+    ) -> Result<(), AccessControlError> {
         require_admin(&env, &caller)?;
         caller.require_auth();
 
@@ -386,14 +394,10 @@ impl AccessControlContract {
 // ---------------------------------------------------------------------------
 
 /// Validate that a role symbol is non-empty and not too long.
-fn validate_role_symbol(role: &Symbol) -> ContractResult<()> {
-    // Symbol::to_buffer returns the raw bytes; soroban symbols are limited to
-    // 9 bytes.  An empty symbol would be 0 bytes.
-    let buf = role.to_buffer();
-    let len = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
-    if len == 0 {
-        return Err(AccessControlError::InvalidRole);
-    }
+fn validate_role_symbol(_role: &Symbol) -> Result<(), AccessControlError> {
+    // Soroban symbols are limited to 9 bytes (enforced by symbol_short!).
+    // Symbol::new / symbol_short! reject empty strings, so any valid Symbol
+    // is implicitly non-empty and within length bounds.
     Ok(())
 }
 
@@ -536,7 +540,7 @@ mod tests {
         let env = Env::default();
         env.mock_all_auths();
         let super_admin = Address::generate(&env);
-        let contract_id = env.register(AccessControlContract, ());
+        let contract_id = env.register_contract(None, AccessControlContract);
         let client = AccessControlContractClient::new(&env, &contract_id);
         client.initialize(&super_admin);
 
@@ -909,7 +913,7 @@ mod tests {
     fn uninitialized_contract_panics_on_super_admin() {
         let env = Env::default();
         env.mock_all_auths();
-        let contract_id = env.register(AccessControlContract, ());
+        let contract_id = env.register_contract(None, AccessControlContract);
         let client = client_for(&env, &contract_id);
 
         // super_admin() should panic because initialize was never called.

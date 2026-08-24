@@ -51,9 +51,9 @@
 //! assert!(result.succeeded == 2);
 //! ```
 
-#![no_std]
-
-use soroban_sdk::{contracterror, contracttype, symbol_short, token, Address, Env, Symbol, Vec};
+use soroban_sdk::{
+    contracterror, contracttype, symbol_short, token, Address, Env, IntoVal, Symbol, Vec,
+};
 
 use crate::errors::Error;
 
@@ -367,7 +367,7 @@ fn execute_single_transfer(
                     [
                         caller.to_val(),
                         transfer.to.to_val(),
-                        transfer.amount.to_val(),
+                        transfer.amount.into_val(env),
                     ],
                 ),
             );

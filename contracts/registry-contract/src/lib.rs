@@ -1,10 +1,9 @@
 #![no_std]
 
-use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, Bytes, Env, Map, Symbol, Vec};
-use shared::{auth, errors::Error};
 use shared::events::{emit_action_executed, emit_module_initialized};
+use shared::{auth, errors::Error};
 use soroban_sdk::{
-    contract, contractimpl, contracttype, symbol_short, Address, Env, Map, Symbol, Vec,
+    contract, contractimpl, contracttype, symbol_short, Address, Bytes, Env, Map, Symbol, Vec,
 };
 
 // Storage keys
@@ -54,7 +53,13 @@ impl RegistryContract {
     /// Initialise the contract, setting the admin address.
     pub fn initialize(env: Env, admin: Address) {
         shared::auth::set_admin(&env, &admin);
-        emit_module_initialized(&env, symbol_short!("registry"), 1, &admin, env.ledger().timestamp());
+        emit_module_initialized(
+            &env,
+            symbol_short!("registry"),
+            1,
+            &admin,
+            env.ledger().timestamp(),
+        );
     }
 
     // ─── Contract Registration ─────────────────────────────────────────────
@@ -100,8 +105,8 @@ impl RegistryContract {
         let mut versions = history.get(name.clone()).unwrap_or_else(|| Vec::new(&env));
 
         // Fast path: if the last element matches, no update needed.
-        let already_present = versions.len() > 0
-            && versions.get(versions.len() - 1).unwrap_or(0) == version;
+        let already_present =
+            !versions.is_empty() && versions.get(versions.len() - 1).unwrap_or(0) == version;
         if !already_present {
             // Only do the full linear scan if the fast path didn't match.
             if !versions.iter().any(|existing| existing == version) {
@@ -111,7 +116,14 @@ impl RegistryContract {
             }
         }
 
-        emit_action_executed(&env, symbol_short!("registry"), symbol_short!("set_ctr"), &caller, true, env.ledger().timestamp());
+        emit_action_executed(
+            &env,
+            symbol_short!("registry"),
+            symbol_short!("set_ctr"),
+            &caller,
+            true,
+            env.ledger().timestamp(),
+        );
         Ok(())
     }
 
@@ -177,7 +189,7 @@ impl RegistryContract {
         }
 
         // Validate URI (ensure it's not empty)
-        if uri.len() == 0 {
+        if uri.is_empty() {
             return Err(Error::InvalidArgument);
         }
 
@@ -234,10 +246,7 @@ impl RegistryContract {
             .unwrap_or_else(|| Map::new(&env));
         let metadata = metadata_map.get(name).ok_or(Error::MetadataNotFound)?;
 
-        Ok(RegistryEntry {
-            contract,
-            metadata,
-        })
+        Ok(RegistryEntry { contract, metadata })
     }
 
     /// List all registered names.
@@ -272,9 +281,8 @@ mod tests {
     extern crate std;
 
     use super::*;
-    use soroban_sdk::{testutils::Address as _, Bytes, Symbol};
     use shared::errors::Error;
-    use soroban_sdk::{testutils::Address as _, Symbol};
+    use soroban_sdk::{testutils::Address as _, Bytes, Symbol};
 
     fn create_test_hash(env: &Env) -> Bytes {
         // Create a 32-byte hash for testing
@@ -289,7 +297,7 @@ mod tests {
     fn registers_and_resolves_contracts_with_version_history() {
         let env = Env::default();
         env.mock_all_auths();
-        let registry_id = env.register(RegistryContract, ());
+        let registry_id = env.register_contract(None, RegistryContract);
         let admin = Address::generate(&env);
         let treasury = Address::generate(&env);
         let registry = RegistryContractClient::new(&env, &registry_id);
@@ -319,7 +327,7 @@ mod tests {
     fn rejects_non_admin_registration() {
         let env = Env::default();
         env.mock_all_auths();
-        let registry_id = env.register(RegistryContract, ());
+        let registry_id = env.register_contract(None, RegistryContract);
         let admin = Address::generate(&env);
         let attacker = Address::generate(&env);
         let treasury = Address::generate(&env);
@@ -346,13 +354,9 @@ mod tests {
     /// expensive Vec deserialization + linear scan is skipped entirely.
     #[test]
     fn gas_bench_set_contract_same_version_skips_history() {
-    // ─── Metadata Tests ─────────────────────────────────────────────────────
-
-    #[test]
-    fn registers_and_retrieves_metadata() {
         let env = Env::default();
         env.mock_all_auths();
-        let registry_id = env.register(RegistryContract, ());
+        let registry_id = env.register_contract(None, RegistryContract);
         let admin = Address::generate(&env);
         let registry = RegistryContractClient::new(&env, &registry_id);
 
@@ -362,7 +366,9 @@ mod tests {
         let addr1 = Address::generate(&env);
 
         // First registration — full history write
-        assert!(registry.try_set_contract(&admin, &name, &addr1, &1_u32).is_ok());
+        assert!(registry
+            .try_set_contract(&admin, &name, &addr1, &1_u32)
+            .is_ok());
 
         // Second call with same version — fast path, no history update
         let result = registry.try_set_contract(&admin, &name, &addr1, &1_u32);
@@ -374,9 +380,25 @@ mod tests {
 
         // New version — normal path, history updated
         let addr2 = Address::generate(&env);
-        assert!(registry.try_set_contract(&admin, &name, &addr2, &2_u32).is_ok());
+        assert!(registry
+            .try_set_contract(&admin, &name, &addr2, &2_u32)
+            .is_ok());
         let history = registry.get_version_history(&name);
         assert_eq!(history.len(), 2);
+    }
+
+    // ─── Metadata Tests ─────────────────────────────────────────────────────
+
+    #[test]
+    fn registers_and_retrieves_metadata() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let registry_id = env.register_contract(None, RegistryContract);
+        let admin = Address::generate(&env);
+        let registry = RegistryContractClient::new(&env, &registry_id);
+
+        registry.initialize(&admin);
+
         let name = Symbol::new(&env, "test_contract");
         let uri = Bytes::from_slice(&env, b"ipfs://QmTest123");
         let hash = create_test_hash(&env);
@@ -399,7 +421,7 @@ mod tests {
     fn prevents_updating_immutable_entry() {
         let env = Env::default();
         env.mock_all_auths();
-        let registry_id = env.register(RegistryContract, ());
+        let registry_id = env.register_contract(None, RegistryContract);
         let admin = Address::generate(&env);
         let registry = RegistryContractClient::new(&env, &registry_id);
 
@@ -428,7 +450,7 @@ mod tests {
     fn updates_mutable_entry() {
         let env = Env::default();
         env.mock_all_auths();
-        let registry_id = env.register(RegistryContract, ());
+        let registry_id = env.register_contract(None, RegistryContract);
         let admin = Address::generate(&env);
         let registry = RegistryContractClient::new(&env, &registry_id);
 
@@ -459,7 +481,7 @@ mod tests {
     fn rejects_invalid_hash_length() {
         let env = Env::default();
         env.mock_all_auths();
-        let registry_id = env.register(RegistryContract, ());
+        let registry_id = env.register_contract(None, RegistryContract);
         let admin = Address::generate(&env);
         let registry = RegistryContractClient::new(&env, &registry_id);
 
@@ -472,7 +494,14 @@ mod tests {
         let schema_version = 1;
 
         assert!(matches!(
-            registry.try_set_metadata(&admin, &name, &uri, &invalid_hash, &immutable, &schema_version),
+            registry.try_set_metadata(
+                &admin,
+                &name,
+                &uri,
+                &invalid_hash,
+                &immutable,
+                &schema_version
+            ),
             Err(Ok(Error::InvalidHash))
         ));
     }
@@ -481,7 +510,7 @@ mod tests {
     fn gets_metadata_hash() {
         let env = Env::default();
         env.mock_all_auths();
-        let registry_id = env.register(RegistryContract, ());
+        let registry_id = env.register_contract(None, RegistryContract);
         let admin = Address::generate(&env);
         let registry = RegistryContractClient::new(&env, &registry_id);
 
@@ -505,7 +534,7 @@ mod tests {
     fn checks_immutability() {
         let env = Env::default();
         env.mock_all_auths();
-        let registry_id = env.register(RegistryContract, ());
+        let registry_id = env.register_contract(None, RegistryContract);
         let admin = Address::generate(&env);
         let registry = RegistryContractClient::new(&env, &registry_id);
 
@@ -529,7 +558,7 @@ mod tests {
     fn gets_full_registry_entry() {
         let env = Env::default();
         env.mock_all_auths();
-        let registry_id = env.register(RegistryContract, ());
+        let registry_id = env.register_contract(None, RegistryContract);
         let admin = Address::generate(&env);
         let contract_addr = Address::generate(&env);
         let registry = RegistryContractClient::new(&env, &registry_id);
@@ -567,7 +596,7 @@ mod tests {
     fn lists_registered_names() {
         let env = Env::default();
         env.mock_all_auths();
-        let registry_id = env.register(RegistryContract, ());
+        let registry_id = env.register_contract(None, RegistryContract);
         let admin = Address::generate(&env);
         let contract1 = Address::generate(&env);
         let contract2 = Address::generate(&env);

@@ -1,7 +1,6 @@
-
-use soroban_sdk::{contracttype, contract, contractimpl, Env, Vec, Address};
-use crate::types::AidRecord;
 use crate::storage::{get_aid, get_aid_counter};
+use crate::types::AidRecord;
+use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, Vec};
 
 #[contracttype]
 #[derive(Clone, Debug)]
@@ -42,13 +41,15 @@ impl ExternalApi {
             None
         };
 
-        PaginatedAidsResponse {
-            aids,
-            next_cursor,
-        }
+        PaginatedAidsResponse { aids, next_cursor }
     }
 
-    pub fn list_aids_by_donor(env: Env, donor: Address, limit: u32, cursor: Option<u64>) -> PaginatedAidsResponse {
+    pub fn list_aids_by_donor(
+        env: Env,
+        donor: Address,
+        limit: u32,
+        cursor: Option<u64>,
+    ) -> PaginatedAidsResponse {
         if limit == 0 {
             return PaginatedAidsResponse {
                 aids: Vec::new(&env),
@@ -76,9 +77,6 @@ impl ExternalApi {
             None
         };
 
-        PaginatedAidsResponse {
-            aids,
-            next_cursor,
-        }
+        PaginatedAidsResponse { aids, next_cursor }
     }
 }

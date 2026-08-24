@@ -3,10 +3,10 @@
 //! Provides deterministic simulation of contract interactions,
 //! gas usage tracking, and state transition analysis.
 
-use soroban_sdk::{Env, Address, Symbol, Val, FromVal, Map};
-use core::fmt;
 use crate::helpers::*;
+use core::fmt;
 use soroban_sdk::InvokeOutcome;
+use soroban_sdk::{Address, Env, FromVal, Map, Symbol, Val};
 
 // -----------------------------------------------------------------------------
 // Simulation Framework
@@ -80,12 +80,21 @@ impl SimulationResult {
         sdk_println!("Failed: {}", self.failed_txs().len());
         sdk_println!("Total gas used: {}", self.total_gas_used);
         sdk_println!("Average gas per tx: {:.2}", self.avg_gas_per_tx());
-        
+
         if let Some(most_expensive) = self.most_expensive_tx() {
-            sdk_println!("Most expensive: {} ({} gas)", most_expensive.name, most_expensive.gas_used);
+            sdk_println!(
+                "Most expensive: {} ({} gas)",
+                most_expensive.name,
+                most_expensive.gas_used
+            );
         }
-        
-        sdk_println!("Ledger span: {} -> {} ({} ledgers)", self.start_ledger, self.end_ledger, self.end_ledger - self.start_ledger);
+
+        sdk_println!(
+            "Ledger span: {} -> {} ({} ledgers)",
+            self.start_ledger,
+            self.end_ledger,
+            self.end_ledger - self.start_ledger
+        );
         sdk_println!("Time span: {}s", self.end_time - self.start_time);
         sdk_println!("============================\n");
     }
@@ -106,10 +115,10 @@ impl DeterministicSimulator {
         let env = Env::default();
         env.mock_all_auths();
         reset_ledger_to_genesis(&env);
-        
+
         let start_ledger = current_ledger_sequence(&env);
         let start_time = current_ledger_timestamp(&env);
-        
+
         Self {
             env,
             transactions: Vec::new(),
@@ -130,19 +139,26 @@ impl DeterministicSimulator {
     }
 
     /// Execute a transaction and record its metrics
-    pub fn execute_tx<T>(&mut self, name: &str, contract: &Address, function: &str, caller: &Address, args: Vec<Val>) -> Result<T, String>
+    pub fn execute_tx<T>(
+        &mut self,
+        name: &str,
+        contract: &Address,
+        function: &str,
+        caller: &Address,
+        args: Vec<Val>,
+    ) -> Result<T, String>
     where
         T: FromVal<Env>,
     {
         let func = Symbol::from_str(&self.env, function);
         let ledger_before = current_ledger_sequence(&self.env);
         let time_before = current_ledger_timestamp(&self.env);
-        
+
         // Record starting gas (approximation for simulation)
         let gas_before = self.current_gas_used;
-        
+
         let result = self.env.try_invoke_contract(contract, &func, args);
-        
+
         let gas_used = self.current_gas_used - gas_before;
         // For simulation, estimate gas based on operation complexity
         let estimated_gas = match function {
@@ -235,7 +251,7 @@ impl GasProfiler {
     pub fn get_stats(&self, operation: &str) -> Option<GasStats> {
         let op_key = String::from_str(self.measurements.env(), operation);
         let measurements = self.measurements.get(op_key)?;
-        
+
         if measurements.is_empty() {
             return None;
         }
@@ -259,8 +275,14 @@ impl GasProfiler {
         sdk_println!("\n=== Gas Usage Comparison ===");
         for (key, measurements) in self.measurements.iter() {
             if let Some(stats) = self.get_stats(key.to_string().as_str()) {
-                sdk_println!("{}: min={}, max={}, avg={} ({} samples)", 
-                    key, stats.min, stats.max, stats.avg, stats.count);
+                sdk_println!(
+                    "{}: min={}, max={}, avg={} ({} samples)",
+                    key,
+                    stats.min,
+                    stats.max,
+                    stats.avg,
+                    stats.count
+                );
             }
         }
         sdk_println!("============================\n");
@@ -295,7 +317,9 @@ pub struct StateManager {
 
 impl StateManager {
     pub fn new() -> Self {
-        Self { snapshots: Vec::new() }
+        Self {
+            snapshots: Vec::new(),
+        }
     }
 
     /// Create a snapshot of the current state

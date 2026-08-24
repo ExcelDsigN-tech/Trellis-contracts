@@ -13,6 +13,7 @@ CONTRACTS=(
   "governance_contract"
   "oracle_contract"
   "registry_contract"
+  "upgradeability"
 )
 
 for CONTRACT in "${CONTRACTS[@]}"; do
