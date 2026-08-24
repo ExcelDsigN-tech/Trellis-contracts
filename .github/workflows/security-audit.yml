@@ -29,7 +29,7 @@ jobs:
           key: security-audit-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
 
       - name: Install advisory scanner
-        run: cargo install cargo-audit --locked
+        run: cargo install cargo-audit@0.21.1 --locked
 
       - name: Run security audit (fails on ungated high-severity findings)
         run: ./scripts/security/run-audit.sh --report security/reports/latest.md --skip-wasm
