@@ -35,7 +35,9 @@ use shared::storage::{instance_get, instance_has, instance_remove, instance_set,
 // Constants
 // ---------------------------------------------------------------------------
 
+#[allow(dead_code)]
 const MAX_VERSION_NAME_LEN: usize = 64;
+#[allow(dead_code)]
 const MAX_MIGRATION_NOTE_LEN: usize = 256;
 
 // ---------------------------------------------------------------------------

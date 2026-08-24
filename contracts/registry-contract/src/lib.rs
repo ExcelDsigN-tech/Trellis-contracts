@@ -106,7 +106,7 @@ impl RegistryContract {
 
         // Fast path: if the last element matches, no update needed.
         let already_present =
-            versions.len() > 0 && versions.get(versions.len() - 1).unwrap_or(0) == version;
+            !versions.is_empty() && versions.get(versions.len() - 1).unwrap_or(0) == version;
         if !already_present {
             // Only do the full linear scan if the fast path didn't match.
             if !versions.iter().any(|existing| existing == version) {
@@ -189,7 +189,7 @@ impl RegistryContract {
         }
 
         // Validate URI (ensure it's not empty)
-        if uri.len() == 0 {
+        if uri.is_empty() {
             return Err(Error::InvalidArgument);
         }
 

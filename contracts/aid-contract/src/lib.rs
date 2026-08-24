@@ -19,6 +19,7 @@ use storage::{get_aid, get_aid_counter, has_aid, set_aid, set_aid_counter};
 pub use types::{AidPage, AidRecord, AidStatus};
 
 const KEY_AIDS: Symbol = symbol_short!("aids");
+#[allow(dead_code)]
 const MAX_QUERY_LIMIT: u32 = 50;
 
 // ---------------------------------------------------------------------------
@@ -264,7 +265,6 @@ impl AidContract {
         storage::get_aid(&env, aid_id)
     }
 
-    /// Set the paused state of the contract.
     // -----------------------------------------------------------------------
     // Admin controls
     // -----------------------------------------------------------------------
@@ -296,6 +296,7 @@ impl AidContract {
 ///
 /// Records whose storage entries were evicted are skipped without stalling
 /// the cursor, so pagination always makes forward progress.
+#[allow(dead_code)]
 fn paginate(env: &Env, ids: &Vec<u64>, cursor: u32, limit: u32) -> AidPage {
     let effective_limit = if limit > MAX_QUERY_LIMIT {
         MAX_QUERY_LIMIT

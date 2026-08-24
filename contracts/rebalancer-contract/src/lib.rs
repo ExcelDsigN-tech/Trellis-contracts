@@ -9,7 +9,7 @@ mod strategy_executor;
 mod logging;
 
 use fee_calculator::calculate_total_fees;
-use logging::log_trade;
+// use logging::log_trade;
 use shared::events::emit_action_executed;
 use slippage_predictor::predict_slippage;
 use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Env, Symbol, Vec, U256};

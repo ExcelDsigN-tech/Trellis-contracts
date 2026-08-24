@@ -6,7 +6,7 @@ use soroban_sdk::{
 
 use shared::errors::Error;
 use shared::events::{emit_action_executed, emit_module_initialized, emit_permission_changed};
-use shared::storage::{persistent_get, persistent_set};
+use shared::storage::persistent_set;
 
 const MAX_SUPPORTED_TIERS: u32 = 10;
 const MIN_REWARD_CAP: i128 = 0;
