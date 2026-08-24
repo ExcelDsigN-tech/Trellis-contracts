@@ -7,7 +7,7 @@ use soroban_sdk::{
 };
 
 fn setup(env: &Env) -> (TreasuryContractClient<'static>, Address, i128) {
-    let contract_id = env.register(TreasuryContract, ());
+    let contract_id = env.register_contract(None, TreasuryContract);
     let client = TreasuryContractClient::new(env, &contract_id);
     let admin = Address::generate(env);
     let limit: i128 = 1_000;
@@ -156,7 +156,7 @@ fn test_distribute_reward_pays_recipient_and_decrements_rewards() {
     let (client, admin, _limit) = setup(&env);
     let rewards = symbol_short!("rewards");
     let recipient = Address::generate(&env);
-    let referral_id = env.register(MockReferralCaller, ());
+    let referral_id = env.register_contract(None, MockReferralCaller);
     let referral = MockReferralCallerClient::new(&env, &referral_id);
 
     client.deposit(&admin, &rewards, &1_000);
@@ -179,7 +179,7 @@ fn test_distribute_reward_rejects_underfunded_rewards_pool() {
     let (client, admin, _limit) = setup(&env);
     let rewards = symbol_short!("rewards");
     let recipient = Address::generate(&env);
-    let referral_id = env.register(MockReferralCaller, ());
+    let referral_id = env.register_contract(None, MockReferralCaller);
     let referral = MockReferralCallerClient::new(&env, &referral_id);
 
     client.deposit(&admin, &rewards, &100);
@@ -198,8 +198,8 @@ fn test_distribute_reward_rejects_caller_that_is_not_registered_referral_contrac
     let (client, admin, _limit) = setup(&env);
     let rewards = symbol_short!("rewards");
     let recipient = Address::generate(&env);
-    let referral_id = env.register(MockReferralCaller, ());
-    let impostor_id = env.register(MockReferralCaller, ());
+    let referral_id = env.register_contract(None, MockReferralCaller);
+    let impostor_id = env.register_contract(None, MockReferralCaller);
     let impostor = MockReferralCallerClient::new(&env, &impostor_id);
 
     client.deposit(&admin, &rewards, &1_000);
@@ -222,7 +222,7 @@ fn test_distribute_reward_rejects_when_no_referral_contract_registered() {
     let (client, admin, _limit) = setup(&env);
     let rewards = symbol_short!("rewards");
     let recipient = Address::generate(&env);
-    let referral_id = env.register(MockReferralCaller, ());
+    let referral_id = env.register_contract(None, MockReferralCaller);
     let referral = MockReferralCallerClient::new(&env, &referral_id);
 
     client.deposit(&admin, &rewards, &1_000);

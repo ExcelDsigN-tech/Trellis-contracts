@@ -130,7 +130,8 @@ pub fn append_donor_index(env: &Env, donor: &Address, aid_id: u64) {
 
 /// Read the full list of aid IDs assigned to `recipient`.
 pub fn get_recipient_index(env: &Env, recipient: &Address) -> Vec<u64> {
-    persistent_get(env, &DataKey::RecipientIndex(recipient.clone())).unwrap_or_else(|| Vec::new(env))
+    persistent_get(env, &DataKey::RecipientIndex(recipient.clone()))
+        .unwrap_or_else(|| Vec::new(env))
 }
 
 /// Append `aid_id` to `recipient`'s index.

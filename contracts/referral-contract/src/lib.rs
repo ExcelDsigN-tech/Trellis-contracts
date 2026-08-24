@@ -1,11 +1,11 @@
 #![no_std]
 
-use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, vec, Address, Env, IntoVal, Symbol};
+use soroban_sdk::{
+    contract, contractimpl, contracttype, symbol_short, vec, Address, Env, IntoVal, Symbol,
+};
 
 use shared::errors::Error;
-use shared::events::{
-    emit_action_executed, emit_module_initialized, emit_permission_changed,
-};
+use shared::events::{emit_action_executed, emit_module_initialized, emit_permission_changed};
 use shared::storage::{persistent_get, persistent_set};
 
 const MAX_SUPPORTED_TIERS: u32 = 10;
@@ -90,14 +90,27 @@ impl ReferralContract {
         env.storage().instance().set(&DataKey::MaxTiers, &1_u32);
         env.storage().instance().set(&DataKey::RewardCap, &0_i128);
         env.storage().instance().set(&DataKey::TierBps(1), &0_i128);
-        emit_module_initialized(&env, symbol_short!("referral"), 1, &admin, env.ledger().timestamp());
+        emit_module_initialized(
+            &env,
+            symbol_short!("referral"),
+            1,
+            &admin,
+            env.ledger().timestamp(),
+        );
     }
 
     /// Configure the treasury contract used for referral reward claims.
     pub fn set_treasury(env: Env, caller: Address, treasury: Address) -> Result<(), Error> {
         require_admin(&env, &caller)?;
         env.storage().instance().set(&DataKey::Treasury, &treasury);
-        emit_action_executed(&env, symbol_short!("referral"), symbol_short!("treasury"), &caller, true, env.ledger().timestamp());
+        emit_action_executed(
+            &env,
+            symbol_short!("referral"),
+            symbol_short!("treasury"),
+            &caller,
+            true,
+            env.ledger().timestamp(),
+        );
         Ok(())
     }
 
@@ -144,7 +157,14 @@ impl ReferralContract {
                 reward_cap,
             },
         );
-        emit_permission_changed(&env, symbol_short!("referral"), symbol_short!("tier"), &caller, true, env.ledger().timestamp());
+        emit_permission_changed(
+            &env,
+            symbol_short!("referral"),
+            symbol_short!("tier"),
+            &caller,
+            true,
+            env.ledger().timestamp(),
+        );
         Ok(())
     }
 
@@ -187,7 +207,14 @@ impl ReferralContract {
                 referrer: referrer.clone(),
             },
         );
-        emit_action_executed(&env, symbol_short!("referral"), symbol_short!("referrer"), &caller, true, env.ledger().timestamp());
+        emit_action_executed(
+            &env,
+            symbol_short!("referral"),
+            symbol_short!("referrer"),
+            &caller,
+            true,
+            env.ledger().timestamp(),
+        );
         Ok(())
     }
 
@@ -246,7 +273,14 @@ impl ReferralContract {
                 referrer: referrer.clone(),
             },
         );
-        emit_action_executed(&env, symbol_short!("referral"), symbol_short!("register"), &wallet, true, env.ledger().timestamp());
+        emit_action_executed(
+            &env,
+            symbol_short!("referral"),
+            symbol_short!("register"),
+            &wallet,
+            true,
+            env.ledger().timestamp(),
+        );
         Ok(())
     }
 
@@ -295,9 +329,7 @@ impl ReferralContract {
                 None => break,
             };
             // Index into the pre-cached array (tier is 1-based, index is 0-based)
-            let tier_bps = tier_bps_cache
-                .get(tier - 1)
-                .ok_or(Error::NotFound)?;
+            let tier_bps = tier_bps_cache.get(tier - 1).ok_or(Error::NotFound)?;
             let commission = shared::math::bps_of(base_amount, tier_bps).ok_or(Error::Overflow)?;
 
             if commission > 0 {
@@ -346,9 +378,19 @@ impl ReferralContract {
             .set(&DataKey::Accrued(referrer.clone()), &0_i128);
         env.events().publish(
             (shared::events::COMMISSION_PAID,),
-            ClaimRewardsEvent { referrer: referrer.clone(), amount },
+            ClaimRewardsEvent {
+                referrer: referrer.clone(),
+                amount,
+            },
         );
-        emit_action_executed(&env, symbol_short!("referral"), symbol_short!("claim"), &referrer, true, env.ledger().timestamp());
+        emit_action_executed(
+            &env,
+            symbol_short!("referral"),
+            symbol_short!("claim"),
+            &referrer,
+            true,
+            env.ledger().timestamp(),
+        );
         Ok(amount)
     }
 }
@@ -700,8 +742,8 @@ mod tests {
     ) {
         let env = Env::default();
         env.mock_all_auths();
-        let referral_id = env.register(ReferralContract, ());
-        let treasury_id = env.register(MockTreasury, ());
+        let referral_id = env.register_contract(None, ReferralContract);
+        let treasury_id = env.register_contract(None, MockTreasury);
         let admin = Address::generate(&env);
         let referred = Address::generate(&env);
         let tier_one = Address::generate(&env);
@@ -794,9 +836,9 @@ mod tests {
         let (env, referral_id, admin, referred, tier_one, _tier_two, _tier_three, _tier_four) =
             setup();
         let referral = ReferralContractClient::new(&env, &referral_id);
-        let registry_id = env.register(MockRegistry, ());
+        let registry_id = env.register_contract(None, MockRegistry);
         let registry = MockRegistryClient::new(&env, &registry_id);
-        let treasury_id = env.register(MockTreasury, ());
+        let treasury_id = env.register_contract(None, MockTreasury);
         let treasury = MockTreasuryClient::new(&env, &treasury_id);
 
         registry.initialize(&admin);
@@ -826,6 +868,7 @@ mod tests {
         referral.set_referrer(&admin, &referred, &tier_one);
 
         // Accrue up to the cap
+        let max_cap: i128 = 10_000;
         assert_eq!(referral.accrue(&admin, &referred, &max_cap), max_cap);
         assert_eq!(referral.accrued_balance(&tier_one), max_cap);
 
@@ -1025,9 +1068,8 @@ mod tests {
             setup();
         let referral = ReferralContractClient::new(&env, &referral_id);
 
-        let tier_bps = soroban_sdk::vec![
-            &env, 100_i128, 100, 100, 100, 100, 100, 100, 100, 100, 100,
-        ];
+        let tier_bps =
+            soroban_sdk::vec![&env, 100_i128, 100, 100, 100, 100, 100, 100, 100, 100, 100,];
         referral.set_tier_config(&admin, &tier_bps, &10, &1_000_000_000_000_000_000);
 
         // Build a 10-deep chain

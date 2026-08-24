@@ -4,8 +4,8 @@ use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, E
 
 use shared::auth::{self, Role};
 use shared::errors::Error;
-use shared::events::{emit_action_executed, emit_module_initialized};
 use shared::events;
+use shared::events::{emit_action_executed, emit_module_initialized};
 use shared::storage::{instance_get, instance_set, persistent_set};
 
 // ---------------------------------------------------------------------------
@@ -168,7 +168,13 @@ impl GovernanceContract {
 
         // Seed parameter defaults.
         seed_defaults(&env);
-        emit_module_initialized(&env, symbol_short!("gov"), 1, &admin, env.ledger().timestamp());
+        emit_module_initialized(
+            &env,
+            symbol_short!("gov"),
+            1,
+            &admin,
+            env.ledger().timestamp(),
+        );
 
         Ok(())
     }
@@ -393,7 +399,14 @@ impl GovernanceContract {
             (shared::events::PARAMETER_CHANGED,),
             ParameterChangedEvent { key, value },
         );
-        emit_action_executed(&env, symbol_short!("gov"), symbol_short!("set_param"), &caller, true, env.ledger().timestamp());
+        emit_action_executed(
+            &env,
+            symbol_short!("gov"),
+            symbol_short!("set_param"),
+            &caller,
+            true,
+            env.ledger().timestamp(),
+        );
         Ok(())
     }
 
@@ -605,7 +618,7 @@ mod tests {
     fn setup() -> (Env, GovernanceContractClient<'static>, Address) {
         let env = Env::default();
         env.mock_all_auths();
-        let contract_id = env.register(GovernanceContract, ());
+        let contract_id = env.register_contract(None, GovernanceContract);
         let client = GovernanceContractClient::new(&env, &contract_id);
         let admin = Address::generate(&env);
         let other = Address::generate(&env);
@@ -652,7 +665,7 @@ mod tests {
     fn initialize_rejects_zero_threshold() {
         let env = Env::default();
         env.mock_all_auths();
-        let contract_id = env.register(GovernanceContract, ());
+        let contract_id = env.register_contract(None, GovernanceContract);
         let client = GovernanceContractClient::new(&env, &contract_id);
         let admin = Address::generate(&env);
         let mut admin_set: soroban_sdk::Vec<Address> = soroban_sdk::Vec::new(&env);
@@ -665,7 +678,7 @@ mod tests {
     fn initialize_rejects_threshold_exceeding_admin_set_size() {
         let env = Env::default();
         env.mock_all_auths();
-        let contract_id = env.register(GovernanceContract, ());
+        let contract_id = env.register_contract(None, GovernanceContract);
         let client = GovernanceContractClient::new(&env, &contract_id);
         let admin = Address::generate(&env);
         let mut admin_set: soroban_sdk::Vec<Address> = soroban_sdk::Vec::new(&env);
@@ -834,7 +847,7 @@ mod tests {
     fn execute_with_more_approvals_than_threshold() {
         let env = Env::default();
         env.mock_all_auths();
-        let contract_id = env.register(GovernanceContract, ());
+        let contract_id = env.register_contract(None, GovernanceContract);
         let client = GovernanceContractClient::new(&env, &contract_id);
         let a1 = Address::generate(&env);
         let a2 = Address::generate(&env);

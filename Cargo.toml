@@ -11,8 +11,8 @@ members = [
     "contracts/upgradeability",
     "shared",
     "contracts/rebalancer-contract",
-    "testing",
 ]
+exclude = ["testing"]
 
 [workspace.dependencies]
 soroban-sdk = { version = "21.0.0", default-features = true }

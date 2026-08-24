@@ -43,21 +43,41 @@ impl TreasuryContract {
             &true,
         );
         instance_set(&env, &MAX_WD, &max_withdrawal_limit);
-        emit_module_initialized(&env, symbol_short!("treasury"), 1, &admin, env.ledger().timestamp());
+        emit_module_initialized(
+            &env,
+            symbol_short!("treasury"),
+            1,
+            &admin,
+            env.ledger().timestamp(),
+        );
         Ok(())
     }
 
     /// Grants the `TreasuryManager` role to `who`. Admin only.
     pub fn add_treasury_manager(env: Env, caller: Address, who: Address) -> Result<(), Error> {
         auth::grant_role(&env, &caller, &who, Role::TreasuryManager)?;
-        emit_permission_changed(&env, symbol_short!("treasury"), symbol_short!("manager"), &who, true, env.ledger().timestamp());
+        emit_permission_changed(
+            &env,
+            symbol_short!("treasury"),
+            symbol_short!("manager"),
+            &who,
+            true,
+            env.ledger().timestamp(),
+        );
         Ok(())
     }
 
     /// Revokes the `TreasuryManager` role from `who`. Admin only.
     pub fn remove_treasury_manager(env: Env, caller: Address, who: Address) -> Result<(), Error> {
         auth::revoke_role(&env, &caller, &who, Role::TreasuryManager)?;
-        emit_permission_changed(&env, symbol_short!("treasury"), symbol_short!("manager"), &who, false, env.ledger().timestamp());
+        emit_permission_changed(
+            &env,
+            symbol_short!("treasury"),
+            symbol_short!("manager"),
+            &who,
+            false,
+            env.ledger().timestamp(),
+        );
         Ok(())
     }
 
@@ -68,7 +88,14 @@ impl TreasuryContract {
             return Err(Error::InvalidArgument);
         }
         instance_set(&env, &MAX_WD, &new_limit);
-        emit_action_executed(&env, symbol_short!("treasury"), symbol_short!("wd_limit"), &caller, true, env.ledger().timestamp());
+        emit_action_executed(
+            &env,
+            symbol_short!("treasury"),
+            symbol_short!("wd_limit"),
+            &caller,
+            true,
+            env.ledger().timestamp(),
+        );
         Ok(())
     }
 
@@ -84,7 +111,14 @@ impl TreasuryContract {
         let new_balance = balance.checked_add(amount).ok_or(Error::Overflow)?;
         env.storage().instance().set(&key, &new_balance);
         emit_treasury_deposit(&env, category, &caller, amount, new_balance);
-        emit_action_executed(&env, symbol_short!("treasury"), symbol_short!("deposit"), &caller, true, env.ledger().timestamp());
+        emit_action_executed(
+            &env,
+            symbol_short!("treasury"),
+            symbol_short!("deposit"),
+            &caller,
+            true,
+            env.ledger().timestamp(),
+        );
         Ok(())
     }
 
@@ -140,7 +174,14 @@ impl TreasuryContract {
         instance_set(&env, &key, &remaining);
 
         emit_treasury_withdrawal(&env, category, &to, amount, remaining);
-        emit_action_executed(&env, symbol_short!("treasury"), symbol_short!("withdraw"), &caller, true, env.ledger().timestamp());
+        emit_action_executed(
+            &env,
+            symbol_short!("treasury"),
+            symbol_short!("withdraw"),
+            &caller,
+            true,
+            env.ledger().timestamp(),
+        );
 
         Ok(())
     }
@@ -187,7 +228,14 @@ impl TreasuryContract {
             events::TREASURY_EMERGENCY_WITHDRAW,
             (caller.clone(), to, amount),
         );
-        emit_action_executed(&env, symbol_short!("treasury"), symbol_short!("emrg_wd"), &caller, true, env.ledger().timestamp());
+        emit_action_executed(
+            &env,
+            symbol_short!("treasury"),
+            symbol_short!("emrg_wd"),
+            &caller,
+            true,
+            env.ledger().timestamp(),
+        );
         Ok(())
     }
 
@@ -200,7 +248,14 @@ impl TreasuryContract {
     ) -> Result<(), Error> {
         auth::require_admin(&env, &caller)?;
         instance_set(&env, &REFERRAL_CONTRACT, &referral_contract);
-        emit_action_executed(&env, symbol_short!("treasury"), symbol_short!("ref_ctr"), &caller, true, env.ledger().timestamp());
+        emit_action_executed(
+            &env,
+            symbol_short!("treasury"),
+            symbol_short!("ref_ctr"),
+            &caller,
+            true,
+            env.ledger().timestamp(),
+        );
         Ok(())
     }
 
@@ -246,7 +301,14 @@ impl TreasuryContract {
         instance_set(&env, &key, &remaining);
 
         emit_commission_paid(&env, &recipient, amount, env.ledger().timestamp());
-        emit_action_executed(&env, symbol_short!("treasury"), symbol_short!("reward"), &recipient, true, env.ledger().timestamp());
+        emit_action_executed(
+            &env,
+            symbol_short!("treasury"),
+            symbol_short!("reward"),
+            &recipient,
+            true,
+            env.ledger().timestamp(),
+        );
 
         Ok(())
     }

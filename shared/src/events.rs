@@ -543,7 +543,7 @@ mod tests {
         let env = Env::default();
         let donor = Address::generate(&env);
         let recipient = Address::generate(&env);
-        let contract_id = env.register(EventTestContract, ());
+        let contract_id = env.register_contract(None, EventTestContract);
         let client = EventTestContractClient::new(&env, &contract_id);
 
         client.publish_aid_created(&7, &donor, &recipient, &500, &100, &1_000);
@@ -571,7 +571,7 @@ mod tests {
         let env = Env::default();
         let module = symbol_short!("aid");
         let caller = Address::generate(&env);
-        let contract_id = env.register(EventTestContract, ());
+        let contract_id = env.register_contract(None, EventTestContract);
         let client = EventTestContractClient::new(&env, &contract_id);
 
         client.publish_module_initialized(&module, &1, &caller, &1_000);
@@ -597,7 +597,7 @@ mod tests {
         let module = symbol_short!("aid");
         let action = symbol_short!("create");
         let caller = Address::generate(&env);
-        let contract_id = env.register(EventTestContract, ());
+        let contract_id = env.register_contract(None, EventTestContract);
         let client = EventTestContractClient::new(&env, &contract_id);
 
         client.publish_action_executed(&module, &action, &caller, &true, &1_000);
@@ -622,7 +622,7 @@ mod tests {
         let module = symbol_short!("treasury");
         let role = symbol_short!("manager");
         let subject = Address::generate(&env);
-        let contract_id = env.register(EventTestContract, ());
+        let contract_id = env.register_contract(None, EventTestContract);
         let client = EventTestContractClient::new(&env, &contract_id);
 
         client.publish_permission_changed(&module, &role, &subject, &true, &1_000);

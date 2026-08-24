@@ -6,7 +6,7 @@
 use soroban_sdk::{
     contract, contractimpl,
     testutils::{Address as _, Ledger, LedgerInfo},
-    token, Address, Env, String, Map, Symbol,
+    token, Address, Env, Map, String, Symbol,
 };
 
 // -----------------------------------------------------------------------------
@@ -33,11 +33,11 @@ impl MockToken {
     pub fn mint(env: Env, to: Address, amount: i128) {
         let admin: Address = env.storage().instance().get(&b"admin").unwrap();
         admin.require_auth();
-        
+
         let mut balance: i128 = env.storage().persistent().get(&to).unwrap_or(0);
         balance += amount;
         env.storage().persistent().set(&to, &balance);
-        
+
         let mut total_supply: i128 = env.storage().instance().get(b"total_supply").unwrap();
         total_supply += amount;
         env.storage().instance().set(b"total_supply", &total_supply);
@@ -47,7 +47,7 @@ impl MockToken {
         let from = env.current_contract_address();
         let mut from_balance: i128 = env.storage().persistent().get(&from).unwrap_or(0);
         let mut to_balance: i128 = env.storage().persistent().get(&to).unwrap_or(0);
-        
+
         if from_balance >= amount {
             from_balance -= amount;
             to_balance += amount;
@@ -139,7 +139,9 @@ impl MockRegistry {
     pub fn initialize(env: Env, admin: Address) {
         if !env.storage().instance().has(&b"registry_initialized") {
             env.storage().instance().set(&b"admin", &admin);
-            env.storage().instance().set(&b"registry_initialized", &true);
+            env.storage()
+                .instance()
+                .set(&b"registry_initialized", &true);
         }
     }
 
@@ -168,16 +170,16 @@ pub fn create_mock_token(
 ) -> (Address, MockTokenClient) {
     let token_address = env.register_contract(None, MockToken);
     let client = MockTokenClient::new(env, &token_address);
-    
+
     let name_str = String::from_str(env, name);
     let symbol_str = String::from_str(env, symbol);
-    
+
     env.invoke_contract(
         &token_address,
         &Symbol::new(env, "initialize"),
         (admin.clone(), decimals, name_str, symbol_str),
     );
-    
+
     (token_address, client)
 }
 
@@ -189,7 +191,10 @@ pub struct MockOracleClient<'a> {
 
 impl<'a> MockOracleClient<'a> {
     pub fn new(env: &'a Env, address: &Address) -> Self {
-        Self { env, address: address.clone() }
+        Self {
+            env,
+            address: address.clone(),
+        }
     }
 
     pub fn update_price(&self, asset: &Address, price: i128, decimals: u32) {
@@ -204,7 +209,7 @@ impl<'a> MockOracleClient<'a> {
         self.env.invoke_contract(
             &self.address,
             &Symbol::new(self.env, "get_price"),
-            (asset.clone(),)
+            (asset.clone(),),
         )
     }
 }
