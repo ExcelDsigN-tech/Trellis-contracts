@@ -39,9 +39,33 @@ pub enum Error {
     /// The proposal has already been executed.
     AlreadyExecuted = 15,
     /// Attempted to modify an entry that has been marked immutable.
-    ImmutableEntry = 12,
+    ImmutableEntry = 16,
     /// The supplied metadata hash is invalid (wrong length or format).
-    InvalidHash = 13,
+    InvalidHash = 17,
     /// No metadata entry exists for the given identifier.
-    MetadataNotFound = 14,
+    MetadataNotFound = 18,
+
+    // ── Upgradeability errors (900–920) ──────────────────────────────────
+    /// The target contract is not registered in the upgrade registry.
+    ContractNotRegistered = 900,
+    /// A contract with the given name is already registered.
+    ContractAlreadyRegistered = 901,
+    /// The proposed WASM hash matches the current one (no-op upgrade).
+    NoChangeDetected = 902,
+    /// The upgrade proposal was not found.
+    UpgradeProposalNotFound = 903,
+    /// The upgrade proposal has already been executed.
+    UpgradeAlreadyExecuted = 904,
+    /// The migration hook contract call failed.
+    MigrationHookFailed = 905,
+    /// The contract is already pending an upgrade.
+    UpgradeAlreadyPending = 906,
+    /// The caller does not hold the Upgrader role.
+    NotUpgrader = 907,
+    /// The WASM hash is empty or invalid.
+    InvalidWasmHash = 908,
+    /// Storage layout incompatibility detected during migration.
+    StorageIncompatible = 909,
+    /// The migration hook address is not a valid contract.
+    InvalidMigrationHook = 910,
 }

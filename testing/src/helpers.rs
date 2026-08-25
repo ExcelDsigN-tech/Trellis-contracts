@@ -3,11 +3,11 @@
 //! Provides helper functions for ledger manipulation, auth mocking, and
 //! common test setup patterns.
 
+use core::fmt::Write;
 use soroban_sdk::{
     testutils::{Address as _, Ledger, LedgerInfo},
-    token, Address, Env, Symbol, String, Map,
+    token, Address, Env, Map, String, Symbol,
 };
-use core::fmt::Write;
 
 // -----------------------------------------------------------------------------
 // Time / Ledger Manipulation Helpers
@@ -79,15 +79,15 @@ impl TestEnvironment {
         let env = Env::default();
         env.mock_all_auths();
         reset_ledger_to_genesis(&env);
-        
+
         let admin = Address::generate(&env);
         let mut users = Vec::with_capacity(num_users);
         for _ in 0..num_users {
             users.push(Address::generate(&env));
         }
-        
+
         let mut contracts = Map::new(&env);
-        
+
         Self {
             env,
             admin,
@@ -99,7 +99,8 @@ impl TestEnvironment {
     /// Register a contract in the environment
     pub fn register_contract<T>(&mut self, name: &str, contract: T) -> Address {
         let address = self.env.register_contract(None, contract);
-        self.contracts.set(String::from_str(&self.env, name), address.clone());
+        self.contracts
+            .set(String::from_str(&self.env, name), address.clone());
         address
     }
 
@@ -109,15 +110,19 @@ impl TestEnvironment {
     }
 
     /// Create and register a Stellar asset token for testing
-    pub fn create_stellar_token(&mut self, name: &str) -> (Address, token::Client, token::StellarAssetClient) {
+    pub fn create_stellar_token(
+        &mut self,
+        name: &str,
+    ) -> (Address, token::Client, token::StellarAssetClient) {
         let contract_address = self.env.register_stellar_asset_contract(self.admin.clone());
         let client = token::Client::new(&self.env, &contract_address);
         let asset_client = token::StellarAssetClient::new(&self.env, &contract_address);
-        
+
         // Mint initial supply to admin for distribution
         asset_client.mint(&self.admin, &0);
-        
-        self.contracts.set(String::from_str(&self.env, name), contract_address.clone());
+
+        self.contracts
+            .set(String::from_str(&self.env, name), contract_address.clone());
         (contract_address, client, asset_client)
     }
 
@@ -156,7 +161,8 @@ impl EventTracer {
     /// Log an event with timestamp
     pub fn log_event(&mut self, timestamp: u64, event_name: &str, data: &[&str]) {
         let data_str: Vec<String> = data.iter().map(|s| s.to_string()).collect();
-        self.events.push((timestamp, event_name.to_string(), data_str));
+        self.events
+            .push((timestamp, event_name.to_string(), data_str));
     }
 
     /// Print all events in order
@@ -169,7 +175,8 @@ impl EventTracer {
 
     /// Filter events by name
     pub fn filter_by_name(&self, event_name: &str) -> Vec<&(u64, String, Vec<String>)> {
-        self.events.iter()
+        self.events
+            .iter()
             .filter(|(_, name, _)| name == event_name)
             .collect()
     }

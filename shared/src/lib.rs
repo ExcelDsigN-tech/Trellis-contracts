@@ -3,21 +3,11 @@
 pub mod auth;
 pub mod batch;
 pub mod errors;
-pub mod events;
 pub mod event;
+pub mod events;
 pub mod math;
 pub mod storage;
 pub mod utils;
-
-#[soroban_sdk::contracterror]
-#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
-#[repr(u32)]
-pub enum Error {
-    InvalidAmount = 1,
-    InvalidArgument = 2,
-    Uninitialised = 3,
-    Unauthorized = 4,
-}
 
 // Re-export the most commonly-needed items at crate root for ergonomic use.
 pub use auth::{get_admin, require_admin, require_not_paused, set_admin};

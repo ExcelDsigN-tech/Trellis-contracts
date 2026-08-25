@@ -3,12 +3,9 @@
 //! Provides fuzzing frameworks and utilities for testing Payments,
 //! Access Control, and Upgradeability modules with randomized inputs.
 
-use soroban_sdk::{
-    testutils::Address as _,
-    Address, Env, Symbol, String, Map,
-};
 use crate::helpers::*;
 use crate::mocks::*;
+use soroban_sdk::{testutils::Address as _, Address, Env, Map, String, Symbol};
 
 // -----------------------------------------------------------------------------
 // Fuzz Input Generators
@@ -31,7 +28,10 @@ impl<'a> FuzzInputGenerator<'a> {
 
     /// Simple LCG for deterministic randomness
     fn next_u64(&mut self) -> u64 {
-        self.seed = self.seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.seed = self
+            .seed
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         self.seed
     }
 
@@ -125,7 +125,7 @@ impl<'a> AccessControlFuzzer<'a> {
     pub fn new(env: &'a Env, seed: Option<u64>) -> Self {
         let admin = Address::generate(env);
         let mut generator = FuzzInputGenerator::new(env, seed);
-        
+
         let mut users = Vec::new();
         for _ in 0..10 {
             users.push(generator.random_address());
@@ -152,14 +152,14 @@ impl<'a> AccessControlFuzzer<'a> {
     /// Run fuzzing with the given configuration
     pub fn fuzz(&mut self, config: &AccessControlFuzzConfig) -> AccessControlFuzzResults {
         let mut results = AccessControlFuzzResults::default();
-        
+
         // Perform role assignment operations
         for _ in 0..config.num_role_operations {
             results.total_operations += 1;
-            
+
             let user = self.generator.random_choice(&self.users);
             let role = self.generator.random_choice(&self.roles);
-            
+
             // Randomly choose to grant or revoke
             if self.generator.random_bool() {
                 // Attempt to grant - sometimes from non-admin (should fail)
@@ -257,7 +257,7 @@ impl<'a> PaymentsFuzzer<'a> {
     pub fn new(env: &'a Env, seed: Option<u64>) -> Self {
         let admin = Address::generate(env);
         let mut generator = FuzzInputGenerator::new(env, seed);
-        
+
         let mut users = Vec::new();
         for _ in 0..20 {
             users.push(generator.random_address());
@@ -290,7 +290,7 @@ impl<'a> PaymentsFuzzer<'a> {
         // Run fuzz transactions
         for _ in 0..config.num_transactions {
             results.total_transactions += 1;
-            
+
             let from = self.generator.random_choice(&self.users);
             let to = if self.generator.random_bool() {
                 self.generator.random_choice(&self.users)
@@ -298,8 +298,10 @@ impl<'a> PaymentsFuzzer<'a> {
                 &self.treasury_address
             };
 
-            let amount = self.generator.random_amount(config.min_amount, config.max_amount / 100);
-            
+            let amount = self
+                .generator
+                .random_amount(config.min_amount, config.max_amount / 100);
+
             let from_balance = token_client.balance_of(from);
             if from_balance >= amount {
                 // Transfer should succeed
@@ -384,7 +386,7 @@ impl<'a> UpgradeabilityFuzzer<'a> {
     pub fn new(env: &'a Env, seed: Option<u64>) -> Self {
         let admin = Address::generate(env);
         let mut generator = FuzzInputGenerator::new(env, seed);
-        
+
         let mut users = Vec::new();
         for _ in 0..10 {
             users.push(generator.random_address());
@@ -409,7 +411,7 @@ impl<'a> UpgradeabilityFuzzer<'a> {
 
         for _ in 0..config.num_upgrade_attempts {
             results.total_attempts += 1;
-            
+
             // Randomly choose who tries to upgrade
             let caller = if self.generator.random_bool() {
                 // 50% chance it's the authorized upgrader
@@ -473,26 +475,46 @@ impl AllFuzzResults {
     pub fn print_summary(&self) {
         sdk_println!("\n=== Fuzzing Complete - Summary ===");
         sdk_println!("Access Control:");
-        sdk_println!("  Total operations: {}", self.access_control.total_operations);
-        sdk_println!("  Unauthorized attempts caught: {}", self.access_control.caught_violations);
+        sdk_println!(
+            "  Total operations: {}",
+            self.access_control.total_operations
+        );
+        sdk_println!(
+            "  Unauthorized attempts caught: {}",
+            self.access_control.caught_violations
+        );
         sdk_println!("  Errors: {}", self.access_control.errors.len());
-        
+
         sdk_println!("\nPayments:");
         sdk_println!("  Total transactions: {}", self.payments.total_transactions);
         sdk_println!("  Total volume: {}", self.payments.total_volume_processed);
-        sdk_println!("  Insufficient funds caught: {}", self.payments.insufficient_funds_caught);
-        sdk_println!("  Invariant violations: {}", self.payments.invariant_violations.len());
-        
+        sdk_println!(
+            "  Insufficient funds caught: {}",
+            self.payments.insufficient_funds_caught
+        );
+        sdk_println!(
+            "  Invariant violations: {}",
+            self.payments.invariant_violations.len()
+        );
+
         sdk_println!("\nUpgradeability:");
-        sdk_println!("  Total upgrade attempts: {}", self.upgradeability.total_attempts);
-        sdk_println!("  Unauthorized blocked: {}", self.upgradeability.unauthorized_attempts_blocked);
-        sdk_println!("  Successful upgrades: {}", self.upgradeability.successful_upgrades);
+        sdk_println!(
+            "  Total upgrade attempts: {}",
+            self.upgradeability.total_attempts
+        );
+        sdk_println!(
+            "  Unauthorized blocked: {}",
+            self.upgradeability.unauthorized_attempts_blocked
+        );
+        sdk_println!(
+            "  Successful upgrades: {}",
+            self.upgradeability.successful_upgrades
+        );
         sdk_println!("===============================\n");
     }
 
     /// Check if all fuzzing tests passed (no invariant violations)
     pub fn all_passed(&self) -> bool {
-        self.payments.invariant_violations.is_empty() && 
-        self.access_control.errors.is_empty()
+        self.payments.invariant_violations.is_empty() && self.access_control.errors.is_empty()
     }
 }

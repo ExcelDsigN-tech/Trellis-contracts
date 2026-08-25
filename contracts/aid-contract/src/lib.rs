@@ -1,4 +1,5 @@
 #![no_std]
+       7-aid-initialization
 use soroban_sdk::{
     contract, contractimpl, contracterror, panic_with_error, token, symbol_short, Address, Env, Symbol, Map,
 };
@@ -8,24 +9,33 @@ use shared::storage::is_paused;
 
 const KEY_AIDS: Symbol = symbol_short!("aids");
 
-use soroban_sdk::{contract, contractimpl, contracterror, token, Address, Env};
+       main
 
+use shared::events::{
+    emit_action_executed, emit_aid_created, emit_module_initialized, emit_permission_changed,
+};
 use shared::storage::{is_paused, set_paused as shared_set_paused};
-use shared::{emit, AID_CLAIMED, AID_CREATED, AID_REFUNDED};
+use shared::{emit, Error, AID_CLAIMED, AID_CREATED, AID_REFUNDED, AID_SETTLED};
+use soroban_sdk::{
+    contract, contracterror, contractimpl, panic_with_error, symbol_short, token, Address, Env,
+    Map, Symbol, Vec,
+};
 
+pub mod api;
 pub mod storage;
 pub mod types;
-pub mod api;
 
-use storage::{get_aid, has_aid, set_aid};
+use storage::{get_aid, get_aid_counter, has_aid, set_aid, set_aid_counter};
 
-pub use types::{AidRecord, AidStatus};
+pub use types::{AidPage, AidRecord, AidStatus};
+
+const KEY_AIDS: Symbol = symbol_short!("aids");
+#[allow(dead_code)]
+const MAX_QUERY_LIMIT: u32 = 50;
 
 // ---------------------------------------------------------------------------
 // Contract-specific error codes (range 100-199 per shared conventions)
 // ---------------------------------------------------------------------------
-
-use soroban_sdk::contracterror;
 
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
@@ -79,11 +89,14 @@ impl AidContract {
 
         // Store configuration
         shared::auth::set_admin(&env, &admin);
+        7-aid-initialization
         storage::set_treasury(&env, &treasury);
         storage::set_token(&env, &token);
         storage::set_default_expiry(&env, default_expiry_secs);
         storage::set_initialized(&env);
 
+
+        main
         emit_module_initialized(
             &env,
             symbol_short!("aid"),
@@ -91,6 +104,7 @@ impl AidContract {
             &admin,
             env.ledger().timestamp(),
         );
+        7-aid-initialization
 
         Ok(())
     }
@@ -153,6 +167,11 @@ impl AidContract {
         }
 
         Ok(())
+
+        env.storage()
+            .instance()
+            .set(&storage::DataKey::Token, &token);
+        main
     }
 
     // -----------------------------------------------------------------------
@@ -178,7 +197,7 @@ impl AidContract {
 
         // Fast-path: cheapest validation first (gas ordering)
         if amount <= 0 {
-            panic_with_error!(&env, SharedError::InvalidAmount);
+            panic_with_error!(&env, Error::InvalidAmount);
         }
         if expiry_ledger <= env.ledger().sequence() {
             env.panic_with_error(AidError::NotExpiredYet);
@@ -200,9 +219,9 @@ impl AidContract {
         // Checks-effects-interactions: store record before cross-contract call
         let record = AidRecord {
             id: aid_id,
-            donor,
-            recipient,
-            token: token_addr,
+            donor: donor.clone(),
+            recipient: recipient.clone(),
+            token: token.clone(),
             amount,
             expiry_ledger,
             status: AidStatus::Pending,
@@ -210,7 +229,8 @@ impl AidContract {
         set_aid(&env, aid_id, &record);
         set_aid_counter(&env, aid_id);
 
-        let mut aids: Map<u64, AidRecord> = env.storage()
+        let mut aids: Map<u64, AidRecord> = env
+            .storage()
             .persistent()
             .get(&KEY_AIDS)
             .unwrap_or_else(|| Map::new(&env));
@@ -227,14 +247,21 @@ impl AidContract {
             expiry_ledger.into(),
         );
 
-        emit(&env, AID_CREATED, (aid_id, donor, recipient, amount, expiry_ledger));
-        emit_action_executed(&env, symbol_short!("aid"), symbol_short!("create"), &env.current_contract_address(), true, env.ledger().timestamp());
-        // Escrow funds from donor into contract.
-        token::Client::new(&env, &token).transfer(
-            &donor,
-            &env.current_contract_address(),
-            &amount,
+        emit(
+            &env,
+            AID_CREATED,
+            (aid_id, donor.clone(), recipient, amount, expiry_ledger),
         );
+        emit_action_executed(
+            &env,
+            symbol_short!("aid"),
+            symbol_short!("create"),
+            &env.current_contract_address(),
+            true,
+            env.ledger().timestamp(),
+        );
+        // Escrow funds from donor into contract.
+        token::Client::new(&env, &token).transfer(&donor, &env.current_contract_address(), &amount);
 
         aid_id
     }
@@ -282,7 +309,14 @@ impl AidContract {
 
         emit(&env, AID_CLAIMED, aid_id);
         emit(&env, AID_SETTLED, aid_id);
-        emit_action_executed(&env, symbol_short!("aid"), symbol_short!("claim_aid"), &env.current_contract_address(), true, env.ledger().timestamp());
+        emit_action_executed(
+            &env,
+            symbol_short!("aid"),
+            symbol_short!("claim_aid"),
+            &env.current_contract_address(),
+            true,
+            env.ledger().timestamp(),
+        );
         Ok(())
     }
 
@@ -323,7 +357,14 @@ impl AidContract {
         );
 
         emit(&env, AID_REFUNDED, aid_id);
-        emit_action_executed(&env, symbol_short!("aid"), symbol_short!("refund"), &env.current_contract_address(), true, env.ledger().timestamp());
+        emit_action_executed(
+            &env,
+            symbol_short!("aid"),
+            symbol_short!("refund"),
+            &env.current_contract_address(),
+            true,
+            env.ledger().timestamp(),
+        );
         Ok(())
     }
 
@@ -331,7 +372,6 @@ impl AidContract {
         storage::get_aid(&env, aid_id)
     }
 
-    /// Set the paused state of the contract.
     // -----------------------------------------------------------------------
     // Admin controls
     // -----------------------------------------------------------------------
@@ -344,8 +384,17 @@ impl AidContract {
         }
         admin.require_auth();
 
-        env.storage().instance().set(&Symbol::new(&env, "paused"), &paused);
-        emit_permission_changed(&env, symbol_short!("aid"), symbol_short!("paused"), &admin, paused, env.ledger().timestamp());
+        env.storage()
+            .instance()
+            .set(&Symbol::new(&env, "paused"), &paused);
+        emit_permission_changed(
+            &env,
+            symbol_short!("aid"),
+            symbol_short!("paused"),
+            &admin,
+            paused,
+            env.ledger().timestamp(),
+        );
         shared_set_paused(&env, paused);
     }
 }
@@ -354,6 +403,7 @@ impl AidContract {
 ///
 /// Records whose storage entries were evicted are skipped without stalling
 /// the cursor, so pagination always makes forward progress.
+#[allow(dead_code)]
 fn paginate(env: &Env, ids: &Vec<u64>, cursor: u32, limit: u32) -> AidPage {
     let effective_limit = if limit > MAX_QUERY_LIMIT {
         MAX_QUERY_LIMIT
@@ -378,4 +428,3 @@ fn paginate(env: &Env, ids: &Vec<u64>, cursor: u32, limit: u32) -> AidPage {
 
 #[cfg(test)]
 mod tests;
-
