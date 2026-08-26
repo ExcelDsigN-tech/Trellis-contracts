@@ -37,6 +37,12 @@ pub enum DataKey {
     AidCounter,
     /// Token address escrowed by this contract (instance).
     Token,
+    /// Treasury address (instance).
+    Treasury,
+    /// Default expiry in seconds (instance).
+    DefaultExpiry,
+    /// Configuration marker (instance) - set on initialize.
+    Initialized,
     /// Append-only list of aid IDs created by a donor (persistent).
     DonorIndex(Address),
     /// Append-only list of aid IDs assigned to a recipient (persistent).
@@ -139,4 +145,46 @@ pub fn append_recipient_index(env: &Env, recipient: &Address, aid_id: u64) {
     let mut ids = get_recipient_index(env, recipient);
     ids.push_back(aid_id);
     persistent_set(env, &DataKey::RecipientIndex(recipient.clone()), &ids);
+
+
+// ---------------------------------------------------------------------------
+// Treasury address — instance storage
+// ---------------------------------------------------------------------------
+
+/// Read the configured treasury address, if initialised.
+pub fn get_treasury(env: &Env) -> Option<Address> {
+    instance_get(env, &DataKey::Treasury)
 }
+
+/// Store the treasury address (initialisation only).
+pub fn set_treasury(env: &Env, treasury: &Address) {
+    instance_set(env, &DataKey::Treasury, treasury);
+}
+
+// ---------------------------------------------------------------------------
+// Default expiry — instance storage
+// ---------------------------------------------------------------------------
+
+/// Read the default expiry in seconds, if set.
+pub fn get_default_expiry(env: &Env) -> Option<u64> {
+    instance_get(env, &DataKey::DefaultExpiry)
+}
+
+/// Store the default expiry in seconds.
+pub fn set_default_expiry(env: &Env, expiry_secs: u64) {
+    instance_set(env, &DataKey::DefaultExpiry, &expiry_secs);
+}
+
+// ---------------------------------------------------------------------------
+// Initialization flag — instance storage
+// ---------------------------------------------------------------------------
+
+/// Check if the contract has been initialized.
+pub fn is_initialized(env: &Env) -> bool {
+    instance_get::<DataKey, bool>(env, &DataKey::Initialized).unwrap_or(false)
+}
+
+/// Mark the contract as initialized.
+pub fn set_initialized(env: &Env) {
+    instance_set(env, &DataKey::Initialized, &true);
+}}

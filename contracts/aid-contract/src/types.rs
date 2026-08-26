@@ -1,5 +1,16 @@
 use soroban_sdk::{contracttype, Address, Vec};
 
+
+/// Contract configuration stored in instance storage.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Config {
+    pub admin: Address,
+    pub treasury: Address,
+    pub token: Address,
+    pub default_expiry_secs: u64,
+}
+
 /// Lifecycle state of an aid record.
 #[contracttype]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
