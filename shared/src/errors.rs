@@ -44,6 +44,8 @@ pub enum Error {
     InvalidHash = 17,
     /// No metadata entry exists for the given identifier.
     MetadataNotFound = 18,
+    /// The contract or component was already initialized.
+    AlreadyInitialized = 19,
 
     // ── Upgradeability errors (900–920) ──────────────────────────────────
     /// The target contract is not registered in the upgrade registry.
@@ -68,4 +70,28 @@ pub enum Error {
     StorageIncompatible = 909,
     /// The migration hook address is not a valid contract.
     InvalidMigrationHook = 910,
+
+    // ── Payment errors (700–720) ──────────────────────────────────────
+    /// The payment amount is not strictly positive.
+    PaymentInvalidAmount = 700,
+    /// The sender has insufficient token balance for this transfer.
+    PaymentInsufficientBalance = 701,
+    /// The escrow deposit does not exist or has already been released.
+    PaymentEscrowNotFound = 702,
+    /// The escrow deposit has already been released to the beneficiary.
+    PaymentEscrowAlreadyReleased = 703,
+    /// The escrow deposit has already been refunded to the depositor.
+    PaymentEscrowAlreadyRefunded = 704,
+    /// The caller is not authorised to release or refund this escrow.
+    PaymentEscrowUnauthorized = 705,
+    /// The escrow deposit has expired and cannot be released.
+    PaymentEscrowExpired = 706,
+    /// The escrow deposit has not yet expired and cannot be refunded.
+    PaymentEscrowNotExpired = 707,
+    /// The fee basis-point rate is out of the valid 0–10 000 range.
+    PaymentInvalidFeeRate = 708,
+    /// The fee calculation resulted in an arithmetic overflow.
+    PaymentFeeOverflow = 709,
+    /// The escrow ID counter has overflowed.
+    PaymentEscrowIdOverflow = 710,
 }

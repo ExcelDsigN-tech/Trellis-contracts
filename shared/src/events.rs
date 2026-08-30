@@ -24,6 +24,13 @@ pub const PROPOSAL_EXECUTED: Symbol = symbol_short!("prop_exc");
 pub const ROLE_GRANTED: Symbol = symbol_short!("role_grt");
 pub const ROLE_REVOKED: Symbol = symbol_short!("role_rvk");
 
+// Payment event topic constants.
+pub const PAYMENT_TRANSFER: Symbol = symbol_short!("pay_xfr");
+pub const PAYMENT_FEE: Symbol = symbol_short!("pay_fee");
+pub const PAYMENT_ESCROW_CREATED: Symbol = symbol_short!("pay_esc_c");
+pub const PAYMENT_ESCROW_RELEASED: Symbol = symbol_short!("pay_esc_r");
+pub const PAYMENT_ESCROW_REFUNDED: Symbol = symbol_short!("pay_esc_f");
+
 // Canonical event-logging topic constants.
 pub const EVENT_LOG_INITIALIZED: Symbol = symbol_short!("evt_init");
 pub const EVENT_LOG_ACTION: Symbol = symbol_short!("evt_act");
