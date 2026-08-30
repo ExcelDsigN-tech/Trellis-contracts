@@ -529,8 +529,8 @@ mod tests {
     extern crate std;
 
     use super::*;
-    use soroban_sdk::testutils::Address as _;
-    use soroban_sdk::Env;
+    use soroban_sdk::testutils::{Address as _, Events};
+    use soroban_sdk::{Env, IntoVal};
 
     // -----------------------------------------------------------------------
     // Helpers
@@ -550,7 +550,7 @@ mod tests {
         (env, super_admin, contract_id)
     }
 
-    fn client_for(env: &Env, contract_id: &Address) -> AccessControlContractClient {
+    fn client_for<'a>(env: &'a Env, contract_id: &Address) -> AccessControlContractClient<'a> {
         AccessControlContractClient::new(env, contract_id)
     }
 
