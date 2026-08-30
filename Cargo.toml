@@ -12,6 +12,7 @@ members = [
     "contracts/upgradeability",
     "shared",
     "contracts/rebalancer-contract",
+    "contracts/nft-marketplace",
 ]
 exclude = ["testing"]
 
