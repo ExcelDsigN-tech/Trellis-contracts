@@ -6,6 +6,7 @@ pub mod errors;
 pub mod event;
 pub mod events;
 pub mod math;
+pub mod payments;
 pub mod storage;
 pub mod utils;
 
@@ -18,6 +19,8 @@ pub use batch::{
 };
 pub use errors::Error;
 pub use events::{
+    PAYMENT_ESCROW_CREATED, PAYMENT_ESCROW_REFUNDED, PAYMENT_ESCROW_RELEASED,
+    PAYMENT_FEE, PAYMENT_TRANSFER,
     emit, AID_CLAIMED, AID_CREATED, AID_REFUNDED, AID_SETTLED, COMMISSION_PAID, CONTRACT_PAUSED,
     CONTRACT_RESUMED, CONTRACT_UPGRADED, PARAMETER_CHANGED, REFERRAL_ACCRUED, REFERRAL_REGISTERED,
     REFERRER_SET, TIER_CONFIG_SET, TREASURY_DEPOSIT, TREASURY_EMERGENCY_WITHDRAW, TREASURY_SET,
@@ -28,6 +31,11 @@ pub use storage::{
     persistent_get, persistent_has, persistent_remove, persistent_set, set_paused, temporary_get,
     temporary_has, temporary_remove, temporary_set, PERSISTENT_BUMP_AMOUNT,
     PERSISTENT_TTL_THRESHOLD, TEMPORARY_BUMP_AMOUNT, TEMPORARY_TTL_THRESHOLD,
+};
+pub use payments::{
+    calculate_fee, calculate_fee_split, create_escrow, deduct_fee, get_escrow,
+    refund_escrow, release_escrow, safe_transfer, safe_transfer_from_contract, EscrowRecord,
+    EscrowState, FeeConfig,
 };
 pub use utils::{is_expired, now};
 
