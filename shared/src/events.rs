@@ -410,6 +410,138 @@ pub fn emit_role_granted(
     );
 }
 
+// ---------------------------------------------------------------------------
+// NFT Marketplace event helpers
+// ---------------------------------------------------------------------------
+
+/// Topics: ("nft", "listed")
+#[allow(clippy::too_many_arguments)]
+pub fn emit_nft_listed(
+    env: &Env,
+    listing_id: u64,
+    seller: &Address,
+    collection: &Address,
+    token_id: u64,
+    price: i128,
+    currency: &Address,
+    listed_at: u64,
+) {
+    env.events().publish(
+        (symbol_short!("nft"), symbol_short!("listed")),
+        (
+            listing_id,
+            seller.clone(),
+            collection.clone(),
+            token_id,
+            price,
+            currency.clone(),
+            listed_at,
+        ),
+    );
+}
+
+/// Topics: ("nft", "sold")
+pub fn emit_nft_sold(
+    env: &Env,
+    listing_id: u64,
+    seller: &Address,
+    buyer: &Address,
+    price: i128,
+    sold_at: u64,
+) {
+    env.events().publish(
+        (symbol_short!("nft"), symbol_short!("sold")),
+        (listing_id, seller.clone(), buyer.clone(), price, sold_at),
+    );
+}
+
+/// Topics: ("nft", "offer")
+pub fn emit_nft_offer(
+    env: &Env,
+    offer_id: u64,
+    offerer: &Address,
+    token_id: u64,
+    amount: i128,
+    expires_at: u64,
+) {
+    env.events().publish(
+        (symbol_short!("nft"), symbol_short!("offer")),
+        (offer_id, offerer.clone(), token_id, amount, expires_at),
+    );
+}
+
+/// Topics: ("nft", "bid")
+pub fn emit_nft_bid(env: &Env, auction_id: u64, bidder: &Address, amount: i128, new_end: u64) {
+    env.events().publish(
+        (symbol_short!("nft"), symbol_short!("bid")),
+        (auction_id, bidder.clone(), amount, new_end),
+    );
+}
+
+/// Topics: ("nft", "auction")
+pub fn emit_nft_auction(
+    env: &Env,
+    auction_id: u64,
+    seller: &Address,
+    collection: &Address,
+    token_id: u64,
+    start_price: i128,
+    end_time: u64,
+) {
+    env.events().publish(
+        (symbol_short!("nft"), symbol_short!("auction")),
+        (
+            auction_id,
+            seller.clone(),
+            collection.clone(),
+            token_id,
+            start_price,
+            end_time,
+        ),
+    );
+}
+
+/// Topics: ("nft", "settle")
+pub fn emit_nft_settle(
+    env: &Env,
+    auction_id: u64,
+    winner: &Address,
+    final_price: i128,
+    settled_at: u64,
+) {
+    env.events().publish(
+        (symbol_short!("nft"), symbol_short!("settle")),
+        (auction_id, winner.clone(), final_price, settled_at),
+    );
+}
+
+/// Topics: ("nft", "royal")
+pub fn emit_royalty_paid(
+    env: &Env,
+    token_id: u64,
+    recipient: &Address,
+    amount: i128,
+    paid_at: u64,
+) {
+    env.events().publish(
+        (symbol_short!("nft"), symbol_short!("royal")),
+        (token_id, recipient.clone(), amount, paid_at),
+    );
+}
+
+/// Topics: ("nft", "col_reg")
+pub fn emit_collection_registered(
+    env: &Env,
+    collection: &Address,
+    admin: &Address,
+    registered_at: u64,
+) {
+    env.events().publish(
+        (symbol_short!("nft"), symbol_short!("col_reg")),
+        (collection.clone(), admin.clone(), registered_at),
+    );
+}
+
 /// Emits `RoleRevoked`.
 ///
 /// Topics: `("role", "revoked")`

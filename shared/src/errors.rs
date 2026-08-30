@@ -94,4 +94,24 @@ pub enum Error {
     PaymentFeeOverflow = 709,
     /// The escrow ID counter has overflowed.
     PaymentEscrowIdOverflow = 710,
+
+    // ── NFT Marketplace errors (1000–1008) ──────────────────────────────
+    /// The NFT listing was not found.
+    ListingNotFound = 1000,
+    /// The NFT listing has already been sold or cancelled.
+    ListingAlreadySold = 1001,
+    /// The caller is not the owner of this NFT.
+    NotOwner = 1002,
+    /// The collection is already registered.
+    CollectionAlreadyRegistered = 1003,
+    /// The collection was not found.
+    CollectionNotFound = 1004,
+    /// The currency address is not whitelisted.
+    CurrencyNotWhitelisted = 1005,
+    /// The metadata hash is invalid (wrong length).
+    InvalidMetadataHash = 1006,
+    /// The royalty basis-point rate is out of range.
+    InvalidRoyaltyRate = 1007,
+    /// The auto-extension window is invalid.
+    InvalidExtensionWindow = 1008,
 }
