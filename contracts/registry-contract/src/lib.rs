@@ -282,7 +282,7 @@ mod tests {
 
     use super::*;
     use shared::errors::Error;
-    use soroban_sdk::{testutils::Address as _, Bytes, Symbol};
+    use soroban_sdk::{testutils::{Address as _, Ledger as _}, Bytes, Symbol};
 
     fn create_test_hash(env: &Env) -> Bytes {
         // Create a 32-byte hash for testing
@@ -393,6 +393,7 @@ mod tests {
     fn registers_and_retrieves_metadata() {
         let env = Env::default();
         env.mock_all_auths();
+        env.ledger().set_timestamp(1000);
         let registry_id = env.register_contract(None, RegistryContract);
         let admin = Address::generate(&env);
         let registry = RegistryContractClient::new(&env, &registry_id);
