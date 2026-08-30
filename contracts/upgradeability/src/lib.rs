@@ -750,21 +750,25 @@ mod tests {
 
     /// Creates a test environment with an initialized UpgradeabilityContract.
     /// Returns (env, client, admin).
-    fn setup() -> (Env, UpgradeabilityContractClient<'static>, Address) {
+    fn setup() -> (Env, Address, Address) {
         let env = Env::default();
         env.mock_all_auths();
         let contract_id = env.register_contract(None, UpgradeabilityContract);
         let client = UpgradeabilityContractClient::new(&env, &contract_id);
         let admin = Address::generate(&env);
         client.initialize(&admin);
-        (env, client, admin)
+        (env, contract_id, admin)
+    }
+
+    fn client_for<'a>(env: &'a Env, contract_id: &Address) -> UpgradeabilityContractClient<'a> {
+        UpgradeabilityContractClient::new(env, contract_id)
     }
 
     /// Helper: create a fake WASM hash from a seed byte.
-    fn fake_hash(seed: u8) -> BytesN<32> {
+    fn fake_hash(env: &Env, seed: u8) -> BytesN<32> {
         let mut buf = [0u8; 32];
         buf[0] = seed;
-        BytesN::from_array(&Env::default(), &buf)
+        BytesN::from_array(env, &buf)
     }
 
     // -----------------------------------------------------------------------
@@ -773,9 +777,13 @@ mod tests {
 
     #[test]
     fn initialize_sets_admin_and_upgrader_role() {
-        let (env, client, admin) = setup();
-        assert!(auth::has_role(&env, &admin, Role::Admin));
-        assert!(auth::has_role(&env, &admin, Role::Upgrader));
+        let (env, contract_id, admin) = setup();
+        let client = client_for(&env, &contract_id);
+        let _ = client;
+        env.as_contract(&contract_id, || {
+            assert!(auth::has_role(&env, &admin, Role::Admin));
+            assert!(auth::has_role(&env, &admin, Role::Upgrader));
+        });
     }
 
     // -----------------------------------------------------------------------
@@ -784,23 +792,25 @@ mod tests {
 
     #[test]
     fn register_contract_succeeds() {
-        let (env, client, admin) = setup();
+        let (env, contract_id, admin) = setup();
+        let client = client_for(&env, &contract_id);
         let contract_id = Address::generate(&env);
-        let wasm = fake_hash(1);
+        let wasm = fake_hash(&env, 1);
 
         client.register_contract(&admin, &contract_id, &symbol_short!("aid"), &1, &wasm);
 
         assert!(client.is_registered(&contract_id));
-        assert_eq!(client.get_version(&contract_id), Ok(1));
-        assert_eq!(client.get_wasm_hash(&contract_id), Ok(wasm));
+        assert_eq!(client.get_version(&contract_id), 1);
+        assert_eq!(client.get_wasm_hash(&contract_id), wasm);
     }
 
     #[test]
     fn register_duplicate_name_fails() {
-        let (env, client, admin) = setup();
+        let (env, contract_id, admin) = setup();
+        let client = client_for(&env, &contract_id);
         let c1 = Address::generate(&env);
         let c2 = Address::generate(&env);
-        let wasm = fake_hash(1);
+        let wasm = fake_hash(&env, 1);
 
         client.register_contract(&admin, &c1, &symbol_short!("aid"), &1, &wasm);
         let result = client.try_register_contract(&admin, &c2, &symbol_short!("aid"), &1, &wasm);
@@ -809,10 +819,11 @@ mod tests {
 
     #[test]
     fn non_admin_cannot_register() {
-        let (env, client, _admin) = setup();
+        let (env, contract_id, _admin) = setup();
+        let client = client_for(&env, &contract_id);
         let stranger = Address::generate(&env);
         let contract_id = Address::generate(&env);
-        let wasm = fake_hash(1);
+        let wasm = fake_hash(&env, 1);
 
         let result =
             client.try_register_contract(&stranger, &contract_id, &symbol_short!("aid"), &1, &wasm);
@@ -821,9 +832,10 @@ mod tests {
 
     #[test]
     fn register_zero_version_fails() {
-        let (env, client, admin) = setup();
+        let (env, contract_id, admin) = setup();
+        let client = client_for(&env, &contract_id);
         let contract_id = Address::generate(&env);
-        let wasm = fake_hash(1);
+        let wasm = fake_hash(&env, 1);
 
         let result =
             client.try_register_contract(&admin, &contract_id, &symbol_short!("aid"), &0, &wasm);
@@ -836,13 +848,14 @@ mod tests {
 
     #[test]
     fn get_registry_entry_returns_correct_data() {
-        let (env, client, admin) = setup();
+        let (env, contract_id, admin) = setup();
+        let client = client_for(&env, &contract_id);
         let contract_id = Address::generate(&env);
-        let wasm = fake_hash(42);
+        let wasm = fake_hash(&env, 42);
 
         client.register_contract(&admin, &contract_id, &symbol_short!("treasury"), &3, &wasm);
 
-        let entry = client.get_registry_entry(&contract_id).unwrap();
+        let entry = client.get_registry_entry(&contract_id);
         assert_eq!(entry.name, symbol_short!("treasury"));
         assert_eq!(entry.current.version, 3);
         assert_eq!(entry.current.wasm_hash, wasm);
@@ -850,21 +863,21 @@ mod tests {
 
     #[test]
     fn get_registry_entry_by_name_works() {
-        let (env, client, admin) = setup();
+        let (env, contract_id, admin) = setup();
+        let client = client_for(&env, &contract_id);
         let contract_id = Address::generate(&env);
-        let wasm = fake_hash(7);
+        let wasm = fake_hash(&env, 7);
 
         client.register_contract(&admin, &contract_id, &symbol_short!("oracle"), &1, &wasm);
 
-        let entry = client
-            .get_registry_entry_by_name(&symbol_short!("oracle"))
-            .unwrap();
+        let entry = client.get_registry_entry_by_name(&symbol_short!("oracle"));
         assert_eq!(entry.contract_id, contract_id);
     }
 
     #[test]
     fn unregistered_contract_returns_error() {
-        let (env, client, _admin) = setup();
+        let (env, contract_id, _admin) = setup();
+        let client = client_for(&env, &contract_id);
         let unknown = Address::generate(&env);
 
         assert_eq!(
@@ -879,10 +892,11 @@ mod tests {
 
     #[test]
     fn set_migration_hook_succeeds() {
-        let (env, client, admin) = setup();
+        let (env, contract_id, admin) = setup();
+        let client = client_for(&env, &contract_id);
         let contract_id = Address::generate(&env);
         let hook_addr = Address::generate(&env);
-        let wasm = fake_hash(1);
+        let wasm = fake_hash(&env, 1);
 
         client.register_contract(&admin, &contract_id, &symbol_short!("aid"), &1, &wasm);
         client.set_migration_hook(&admin, &contract_id, &hook_addr);
@@ -892,11 +906,12 @@ mod tests {
 
     #[test]
     fn non_admin_cannot_set_migration_hook() {
-        let (env, client, admin) = setup();
+        let (env, contract_id, admin) = setup();
+        let client = client_for(&env, &contract_id);
         let stranger = Address::generate(&env);
         let contract_id = Address::generate(&env);
         let hook_addr = Address::generate(&env);
-        let wasm = fake_hash(1);
+        let wasm = fake_hash(&env, 1);
 
         client.register_contract(&admin, &contract_id, &symbol_short!("aid"), &1, &wasm);
 
@@ -906,7 +921,8 @@ mod tests {
 
     #[test]
     fn set_hook_on_unregistered_contract_fails() {
-        let (env, client, admin) = setup();
+        let (env, contract_id, admin) = setup();
+        let client = client_for(&env, &contract_id);
         let contract_id = Address::generate(&env);
         let hook_addr = Address::generate(&env);
 
@@ -920,10 +936,11 @@ mod tests {
 
     #[test]
     fn propose_upgrade_succeeds() {
-        let (env, client, admin) = setup();
+        let (env, contract_id, admin) = setup();
+        let client = client_for(&env, &contract_id);
         let contract_id = Address::generate(&env);
-        let wasm_v1 = fake_hash(1);
-        let wasm_v2 = fake_hash(2);
+        let wasm_v1 = fake_hash(&env, 1);
+        let wasm_v2 = fake_hash(&env, 2);
 
         client.register_contract(&admin, &contract_id, &symbol_short!("aid"), &1, &wasm_v1);
 
@@ -931,7 +948,7 @@ mod tests {
         let proposal_id = client.propose_upgrade(&admin, &contract_id, &wasm_v2, &2, &note);
 
         assert_eq!(proposal_id, 1);
-        let proposal = client.get_proposal(&proposal_id).unwrap();
+        let proposal = client.get_proposal(&proposal_id);
         assert_eq!(proposal.new_version, 2);
         assert_eq!(proposal.new_wasm_hash, wasm_v2);
         assert!(!proposal.executed);
@@ -939,9 +956,10 @@ mod tests {
 
     #[test]
     fn propose_upgrade_same_version_fails() {
-        let (env, client, admin) = setup();
+        let (env, contract_id, admin) = setup();
+        let client = client_for(&env, &contract_id);
         let contract_id = Address::generate(&env);
-        let wasm = fake_hash(1);
+        let wasm = fake_hash(&env, 1);
 
         client.register_contract(&admin, &contract_id, &symbol_short!("aid"), &1, &wasm);
 
@@ -949,7 +967,7 @@ mod tests {
         let result = client.try_propose_upgrade(
             &admin,
             &contract_id,
-            &fake_hash(2),
+            &fake_hash(&env, 2),
             &1, // same version
             &note,
         );
@@ -958,9 +976,10 @@ mod tests {
 
     #[test]
     fn propose_upgrade_same_wasm_fails() {
-        let (env, client, admin) = setup();
+        let (env, contract_id, admin) = setup();
+        let client = client_for(&env, &contract_id);
         let contract_id = Address::generate(&env);
-        let wasm = fake_hash(1);
+        let wasm = fake_hash(&env, 1);
 
         client.register_contract(&admin, &contract_id, &symbol_short!("aid"), &1, &wasm);
 
@@ -977,10 +996,11 @@ mod tests {
 
     #[test]
     fn propose_duplicate_pending_fails() {
-        let (env, client, admin) = setup();
+        let (env, contract_id, admin) = setup();
+        let client = client_for(&env, &contract_id);
         let contract_id = Address::generate(&env);
-        let wasm_v1 = fake_hash(1);
-        let wasm_v2 = fake_hash(2);
+        let wasm_v1 = fake_hash(&env, 1);
+        let wasm_v2 = fake_hash(&env, 2);
 
         client.register_contract(&admin, &contract_id, &symbol_short!("aid"), &1, &wasm_v1);
 
@@ -988,20 +1008,22 @@ mod tests {
         client.propose_upgrade(&admin, &contract_id, &wasm_v2, &2, &note);
 
         let note2 = soroban_sdk::String::from_str(&env, "second");
-        let result = client.try_propose_upgrade(&admin, &contract_id, &fake_hash(3), &3, &note2);
+        let result =
+            client.try_propose_upgrade(&admin, &contract_id, &fake_hash(&env, 3), &3, &note2);
         assert_eq!(result, Err(Ok(UpgradeError::AlreadyPending)));
     }
 
     #[test]
     fn non_upgrader_cannot_propose() {
-        let (env, client, _admin) = setup();
+        let (env, registry_id, _admin) = setup();
+        let client = client_for(&env, &registry_id);
         let stranger = Address::generate(&env);
-        let contract_id = Address::generate(&env);
-        let wasm = fake_hash(1);
+        let target = Address::generate(&env);
+        let wasm = fake_hash(&env, 1);
 
         // Register directly (bypass role check via internal state).
         let entry = RegistryEntry {
-            contract_id: contract_id.clone(),
+            contract_id: target.clone(),
             name: symbol_short!("aid"),
             current: VersionInfo {
                 version: 1,
@@ -1011,15 +1033,13 @@ mod tests {
             },
             migration_hook: None,
         };
-        instance_set(&env, &(KEY_REG_ENTRY, contract_id.clone()), &entry);
-        instance_set(
-            &env,
-            &(KEY_CONTRACT_BY_NAME, symbol_short!("aid")),
-            &contract_id,
-        );
+        env.as_contract(&registry_id, || {
+            instance_set(&env, &(KEY_REG_ENTRY, target.clone()), &entry);
+            instance_set(&env, &(KEY_CONTRACT_BY_NAME, symbol_short!("aid")), &target);
+        });
 
         let note = soroban_sdk::String::from_str(&env, "test");
-        let result = client.try_propose_upgrade(&stranger, &contract_id, &fake_hash(2), &2, &note);
+        let result = client.try_propose_upgrade(&stranger, &target, &fake_hash(&env, 2), &2, &note);
         assert_eq!(result, Err(Ok(UpgradeError::NotUpgrader)));
     }
 
@@ -1029,10 +1049,11 @@ mod tests {
 
     #[test]
     fn execute_upgrade_updates_registry() {
-        let (env, client, admin) = setup();
+        let (env, contract_id, admin) = setup();
+        let client = client_for(&env, &contract_id);
         let contract_id = Address::generate(&env);
-        let wasm_v1 = fake_hash(1);
-        let wasm_v2 = fake_hash(2);
+        let wasm_v1 = fake_hash(&env, 1);
+        let wasm_v2 = fake_hash(&env, 2);
 
         client.register_contract(&admin, &contract_id, &symbol_short!("aid"), &1, &wasm_v1);
 
@@ -1042,12 +1063,12 @@ mod tests {
         client.execute_upgrade(&admin, &proposal_id);
 
         // Verify the registry was updated.
-        let entry = client.get_registry_entry(&contract_id).unwrap();
+        let entry = client.get_registry_entry(&contract_id);
         assert_eq!(entry.current.version, 2);
         assert_eq!(entry.current.wasm_hash, wasm_v2);
 
         // Verify proposal is marked executed.
-        let proposal = client.get_proposal(&proposal_id).unwrap();
+        let proposal = client.get_proposal(&proposal_id);
         assert!(proposal.executed);
 
         // No longer pending.
@@ -1056,10 +1077,11 @@ mod tests {
 
     #[test]
     fn execute_upgrade_records_history() {
-        let (env, client, admin) = setup();
+        let (env, contract_id, admin) = setup();
+        let client = client_for(&env, &contract_id);
         let contract_id = Address::generate(&env);
-        let wasm_v1 = fake_hash(1);
-        let wasm_v2 = fake_hash(2);
+        let wasm_v1 = fake_hash(&env, 1);
+        let wasm_v2 = fake_hash(&env, 2);
 
         client.register_contract(&admin, &contract_id, &symbol_short!("aid"), &1, &wasm_v1);
 
@@ -1080,10 +1102,11 @@ mod tests {
 
     #[test]
     fn execute_already_executed_fails() {
-        let (env, client, admin) = setup();
+        let (env, contract_id, admin) = setup();
+        let client = client_for(&env, &contract_id);
         let contract_id = Address::generate(&env);
-        let wasm_v1 = fake_hash(1);
-        let wasm_v2 = fake_hash(2);
+        let wasm_v1 = fake_hash(&env, 1);
+        let wasm_v2 = fake_hash(&env, 2);
 
         client.register_contract(&admin, &contract_id, &symbol_short!("aid"), &1, &wasm_v1);
 
@@ -1098,11 +1121,12 @@ mod tests {
 
     #[test]
     fn non_upgrader_cannot_execute() {
-        let (env, client, admin) = setup();
+        let (env, contract_id, admin) = setup();
+        let client = client_for(&env, &contract_id);
         let stranger = Address::generate(&env);
         let contract_id = Address::generate(&env);
-        let wasm_v1 = fake_hash(1);
-        let wasm_v2 = fake_hash(2);
+        let wasm_v1 = fake_hash(&env, 1);
+        let wasm_v2 = fake_hash(&env, 2);
 
         client.register_contract(&admin, &contract_id, &symbol_short!("aid"), &1, &wasm_v1);
 
@@ -1115,7 +1139,8 @@ mod tests {
 
     #[test]
     fn execute_nonexistent_proposal_fails() {
-        let (env, client, admin) = setup();
+        let (env, contract_id, admin) = setup();
+        let client = client_for(&env, &contract_id);
         let result = client.try_execute_upgrade(&admin, &999);
         assert_eq!(result, Err(Ok(UpgradeError::ProposalNotFound)));
     }
@@ -1126,10 +1151,11 @@ mod tests {
 
     #[test]
     fn proposer_can_cancel() {
-        let (env, client, admin) = setup();
+        let (env, contract_id, admin) = setup();
+        let client = client_for(&env, &contract_id);
         let contract_id = Address::generate(&env);
-        let wasm_v1 = fake_hash(1);
-        let wasm_v2 = fake_hash(2);
+        let wasm_v1 = fake_hash(&env, 1);
+        let wasm_v2 = fake_hash(&env, 2);
 
         client.register_contract(&admin, &contract_id, &symbol_short!("aid"), &1, &wasm_v1);
 
@@ -1148,23 +1174,26 @@ mod tests {
 
     #[test]
     fn admin_can_cancel_others_proposals() {
-        let (env, client, admin) = setup();
+        let (env, registry_id, admin) = setup();
+        let client = client_for(&env, &registry_id);
         let upgrader = Address::generate(&env);
-        let contract_id = Address::generate(&env);
-        let wasm_v1 = fake_hash(1);
-        let wasm_v2 = fake_hash(2);
+        let target = Address::generate(&env);
+        let wasm_v1 = fake_hash(&env, 1);
+        let wasm_v2 = fake_hash(&env, 2);
 
         // Grant Upgrader role to upgrader.
-        persistent_set(
-            &env,
-            &auth::DataKey::Role(upgrader.clone(), Role::Upgrader),
-            &true,
-        );
+        env.as_contract(&registry_id, || {
+            persistent_set(
+                &env,
+                &auth::DataKey::Role(upgrader.clone(), Role::Upgrader),
+                &true,
+            );
+        });
 
-        client.register_contract(&admin, &contract_id, &symbol_short!("aid"), &1, &wasm_v1);
+        client.register_contract(&admin, &target, &symbol_short!("aid"), &1, &wasm_v1);
 
         let note = soroban_sdk::String::from_str(&env, "v2");
-        let proposal_id = client.propose_upgrade(&upgrader, &contract_id, &wasm_v2, &2, &note);
+        let proposal_id = client.propose_upgrade(&upgrader, &target, &wasm_v2, &2, &note);
 
         // Admin cancels the upgrader's proposal.
         client.cancel_proposal(&admin, &proposal_id);
@@ -1175,10 +1204,11 @@ mod tests {
 
     #[test]
     fn cannot_cancel_executed_proposal() {
-        let (env, client, admin) = setup();
+        let (env, contract_id, admin) = setup();
+        let client = client_for(&env, &contract_id);
         let contract_id = Address::generate(&env);
-        let wasm_v1 = fake_hash(1);
-        let wasm_v2 = fake_hash(2);
+        let wasm_v1 = fake_hash(&env, 1);
+        let wasm_v2 = fake_hash(&env, 2);
 
         client.register_contract(&admin, &contract_id, &symbol_short!("aid"), &1, &wasm_v1);
 
@@ -1197,10 +1227,11 @@ mod tests {
 
     #[test]
     fn verify_upgrade_authorization_succeeds() {
-        let (env, client, admin) = setup();
+        let (env, contract_id, admin) = setup();
+        let client = client_for(&env, &contract_id);
         let contract_id = Address::generate(&env);
-        let wasm_v1 = fake_hash(1);
-        let wasm_v2 = fake_hash(2);
+        let wasm_v1 = fake_hash(&env, 1);
+        let wasm_v2 = fake_hash(&env, 2);
 
         client.register_contract(&admin, &contract_id, &symbol_short!("aid"), &1, &wasm_v1);
 
@@ -1208,40 +1239,42 @@ mod tests {
         client.propose_upgrade(&admin, &contract_id, &wasm_v2, &2, &note);
 
         let result = client.verify_upgrade_authorization(&contract_id, &admin, &wasm_v2);
-        assert_eq!(result, Ok(wasm_v2));
+        assert_eq!(result, wasm_v2);
     }
 
     #[test]
     fn verify_wrong_wasm_hash_fails() {
-        let (env, client, admin) = setup();
+        let (env, contract_id, admin) = setup();
+        let client = client_for(&env, &contract_id);
         let contract_id = Address::generate(&env);
-        let wasm_v1 = fake_hash(1);
-        let wasm_v2 = fake_hash(2);
-        let wasm_wrong = fake_hash(99);
+        let wasm_v1 = fake_hash(&env, 1);
+        let wasm_v2 = fake_hash(&env, 2);
+        let wasm_wrong = fake_hash(&env, 99);
 
         client.register_contract(&admin, &contract_id, &symbol_short!("aid"), &1, &wasm_v1);
 
         let note = soroban_sdk::String::from_str(&env, "v2");
         client.propose_upgrade(&admin, &contract_id, &wasm_v2, &2, &note);
 
-        let result = client.verify_upgrade_authorization(&contract_id, &admin, &wasm_wrong);
+        let result = client.try_verify_upgrade_authorization(&contract_id, &admin, &wasm_wrong);
         assert_eq!(result, Err(Ok(UpgradeError::InvalidWasmHash)));
     }
 
     #[test]
     fn verify_unauthorized_caller_fails() {
-        let (env, client, admin) = setup();
+        let (env, contract_id, admin) = setup();
+        let client = client_for(&env, &contract_id);
         let stranger = Address::generate(&env);
         let contract_id = Address::generate(&env);
-        let wasm_v1 = fake_hash(1);
-        let wasm_v2 = fake_hash(2);
+        let wasm_v1 = fake_hash(&env, 1);
+        let wasm_v2 = fake_hash(&env, 2);
 
         client.register_contract(&admin, &contract_id, &symbol_short!("aid"), &1, &wasm_v1);
 
         let note = soroban_sdk::String::from_str(&env, "v2");
         client.propose_upgrade(&admin, &contract_id, &wasm_v2, &2, &note);
 
-        let result = client.verify_upgrade_authorization(&contract_id, &stranger, &wasm_v2);
+        let result = client.try_verify_upgrade_authorization(&contract_id, &stranger, &wasm_v2);
         assert_eq!(result, Err(Ok(UpgradeError::NotUpgrader)));
     }
 
@@ -1251,24 +1284,26 @@ mod tests {
 
     #[test]
     fn status_current_when_no_pending() {
-        let (env, client, admin) = setup();
+        let (env, contract_id, admin) = setup();
+        let client = client_for(&env, &contract_id);
         let contract_id = Address::generate(&env);
-        let wasm = fake_hash(1);
+        let wasm = fake_hash(&env, 1);
 
         client.register_contract(&admin, &contract_id, &symbol_short!("aid"), &1, &wasm);
 
         assert_eq!(
             client.get_upgrade_status(&contract_id),
-            Ok(UpgradeStatus::Current)
+            UpgradeStatus::Current
         );
     }
 
     #[test]
     fn status_pending_after_proposal() {
-        let (env, client, admin) = setup();
+        let (env, contract_id, admin) = setup();
+        let client = client_for(&env, &contract_id);
         let contract_id = Address::generate(&env);
-        let wasm_v1 = fake_hash(1);
-        let wasm_v2 = fake_hash(2);
+        let wasm_v1 = fake_hash(&env, 1);
+        let wasm_v2 = fake_hash(&env, 2);
 
         client.register_contract(&admin, &contract_id, &symbol_short!("aid"), &1, &wasm_v1);
 
@@ -1277,7 +1312,7 @@ mod tests {
 
         assert_eq!(
             client.get_upgrade_status(&contract_id),
-            Ok(UpgradeStatus::Pending(proposal_id))
+            UpgradeStatus::Pending(proposal_id)
         );
     }
 
@@ -1287,22 +1322,25 @@ mod tests {
 
     #[test]
     fn can_upgrade_for_upgrader() {
-        let (env, client, admin) = setup();
+        let (env, contract_id, admin) = setup();
+        let client = client_for(&env, &contract_id);
         assert!(client.can_upgrade(&admin));
     }
 
     #[test]
     fn can_upgrade_false_for_stranger() {
-        let (env, client, _admin) = setup();
+        let (env, contract_id, _admin) = setup();
+        let client = client_for(&env, &contract_id);
         let stranger = Address::generate(&env);
         assert!(!client.can_upgrade(&stranger));
     }
 
     #[test]
     fn is_registered_true_for_registered() {
-        let (env, client, admin) = setup();
+        let (env, contract_id, admin) = setup();
+        let client = client_for(&env, &contract_id);
         let contract_id = Address::generate(&env);
-        let wasm = fake_hash(1);
+        let wasm = fake_hash(&env, 1);
 
         client.register_contract(&admin, &contract_id, &symbol_short!("aid"), &1, &wasm);
         assert!(client.is_registered(&contract_id));
@@ -1310,14 +1348,10 @@ mod tests {
 
     #[test]
     fn is_registered_false_for_unknown() {
-        let (env, _client, _admin) = setup();
+        let (env, contract_id, _admin) = setup();
         let unknown = Address::generate(&env);
-        // Directly check storage since client would fail.
-        let env2 = Env::default();
-        assert!(!shared::storage::instance_has(
-            &env2,
-            &(KEY_REG_ENTRY, unknown)
-        ));
+        let client = UpgradeabilityContractClient::new(&env, &contract_id);
+        assert!(!client.is_registered(&unknown));
     }
 
     // -----------------------------------------------------------------------
@@ -1326,25 +1360,27 @@ mod tests {
 
     #[test]
     fn register_emits_event() {
-        let (env, client, admin) = setup();
+        let (env, contract_id, admin) = setup();
+        let client = client_for(&env, &contract_id);
         let contract_id = Address::generate(&env);
-        let wasm = fake_hash(1);
+        let wasm = fake_hash(&env, 1);
 
         client.register_contract(&admin, &contract_id, &symbol_short!("aid"), &1, &wasm);
 
         let all_events = env.events().all();
         let found = all_events
             .iter()
-            .any(|e| e.1 == (symbol_short!("upgrade"), symbol_short!("registered")).into_val(&env));
+            .any(|e| e.1 == (symbol_short!("upgrade"), symbol_short!("upg_reg")).into_val(&env));
         assert!(found, "expected contract registered event");
     }
 
     #[test]
     fn propose_emits_event() {
-        let (env, client, admin) = setup();
+        let (env, contract_id, admin) = setup();
+        let client = client_for(&env, &contract_id);
         let contract_id = Address::generate(&env);
-        let wasm_v1 = fake_hash(1);
-        let wasm_v2 = fake_hash(2);
+        let wasm_v1 = fake_hash(&env, 1);
+        let wasm_v2 = fake_hash(&env, 2);
 
         client.register_contract(&admin, &contract_id, &symbol_short!("aid"), &1, &wasm_v1);
 
@@ -1360,10 +1396,11 @@ mod tests {
 
     #[test]
     fn execute_emits_event() {
-        let (env, client, admin) = setup();
+        let (env, contract_id, admin) = setup();
+        let client = client_for(&env, &contract_id);
         let contract_id = Address::generate(&env);
-        let wasm_v1 = fake_hash(1);
-        let wasm_v2 = fake_hash(2);
+        let wasm_v1 = fake_hash(&env, 1);
+        let wasm_v2 = fake_hash(&env, 2);
 
         client.register_contract(&admin, &contract_id, &symbol_short!("aid"), &1, &wasm_v1);
 
@@ -1381,10 +1418,11 @@ mod tests {
 
     #[test]
     fn hook_set_emits_event() {
-        let (env, client, admin) = setup();
+        let (env, contract_id, admin) = setup();
+        let client = client_for(&env, &contract_id);
         let contract_id = Address::generate(&env);
         let hook_addr = Address::generate(&env);
-        let wasm = fake_hash(1);
+        let wasm = fake_hash(&env, 1);
 
         client.register_contract(&admin, &contract_id, &symbol_short!("aid"), &1, &wasm);
         client.set_migration_hook(&admin, &contract_id, &hook_addr);
@@ -1402,9 +1440,10 @@ mod tests {
 
     #[test]
     fn history_empty_for_no_upgrades() {
-        let (env, client, admin) = setup();
+        let (env, contract_id, admin) = setup();
+        let client = client_for(&env, &contract_id);
         let contract_id = Address::generate(&env);
-        let wasm = fake_hash(1);
+        let wasm = fake_hash(&env, 1);
 
         client.register_contract(&admin, &contract_id, &symbol_short!("aid"), &1, &wasm);
 
@@ -1414,11 +1453,12 @@ mod tests {
 
     #[test]
     fn history_tracks_multiple_upgrades() {
-        let (env, client, admin) = setup();
+        let (env, contract_id, admin) = setup();
+        let client = client_for(&env, &contract_id);
         let contract_id = Address::generate(&env);
-        let wasm_v1 = fake_hash(1);
-        let wasm_v2 = fake_hash(2);
-        let wasm_v3 = fake_hash(3);
+        let wasm_v1 = fake_hash(&env, 1);
+        let wasm_v2 = fake_hash(&env, 2);
+        let wasm_v3 = fake_hash(&env, 3);
 
         client.register_contract(&admin, &contract_id, &symbol_short!("aid"), &1, &wasm_v1);
 
@@ -1451,10 +1491,11 @@ mod tests {
 
     #[test]
     fn full_upgrade_cycle_register_propose_execute() {
-        let (env, client, admin) = setup();
+        let (env, contract_id, admin) = setup();
+        let client = client_for(&env, &contract_id);
         let contract_id = Address::generate(&env);
-        let wasm_v1 = fake_hash(1);
-        let wasm_v2 = fake_hash(2);
+        let wasm_v1 = fake_hash(&env, 1);
+        let wasm_v2 = fake_hash(&env, 2);
 
         // 1. Register
         client.register_contract(
@@ -1464,7 +1505,7 @@ mod tests {
             &1,
             &wasm_v1,
         );
-        assert_eq!(client.get_version(&contract_id), Ok(1));
+        assert_eq!(client.get_version(&contract_id), 1);
 
         // 2. Propose
         let note = soroban_sdk::String::from_str(&env, "treasury v2");
@@ -1475,8 +1516,8 @@ mod tests {
         client.execute_upgrade(&admin, &pid);
 
         // 4. Verify
-        assert_eq!(client.get_version(&contract_id), Ok(2));
-        assert_eq!(client.get_wasm_hash(&contract_id), Ok(wasm_v2));
+        assert_eq!(client.get_version(&contract_id), 2);
+        assert_eq!(client.get_wasm_hash(&contract_id), wasm_v2);
         assert_eq!(client.get_pending_proposal(&contract_id), None);
 
         // 5. History
@@ -1490,25 +1531,26 @@ mod tests {
 
     #[test]
     fn multiple_contracts_can_be_registered() {
-        let (env, client, admin) = setup();
+        let (env, contract_id, admin) = setup();
+        let client = client_for(&env, &contract_id);
         let aid = Address::generate(&env);
         let treasury = Address::generate(&env);
         let referral = Address::generate(&env);
 
-        client.register_contract(&admin, &aid, &symbol_short!("aid"), &1, &fake_hash(1));
+        client.register_contract(&admin, &aid, &symbol_short!("aid"), &1, &fake_hash(&env, 1));
         client.register_contract(
             &admin,
             &treasury,
             &symbol_short!("treasury"),
             &1,
-            &fake_hash(10),
+            &fake_hash(&env, 10),
         );
         client.register_contract(
             &admin,
             &referral,
             &symbol_short!("referral"),
             &1,
-            &fake_hash(20),
+            &fake_hash(&env, 20),
         );
 
         assert_eq!(client.get_registered_count(), 3);
@@ -1517,8 +1559,8 @@ mod tests {
         assert!(client.is_registered(&referral));
 
         // Each has independent state.
-        assert_eq!(client.get_version(&aid), Ok(1));
-        assert_eq!(client.get_version(&treasury), Ok(1));
-        assert_eq!(client.get_version(&referral), Ok(1));
+        assert_eq!(client.get_version(&aid), 1);
+        assert_eq!(client.get_version(&treasury), 1);
+        assert_eq!(client.get_version(&referral), 1);
     }
 }

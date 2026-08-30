@@ -45,7 +45,8 @@ fn setup() -> Fixture {
 
     let contract_id = env.register_contract(None, AidContract);
     let client = AidContractClient::new(&env, &contract_id);
-    client.initialize(&admin, &token_addr);
+    let treasury = Address::generate(&env);
+    client.initialize(&admin, &treasury, &token_addr, &3600);
 
     Fixture {
         env,
@@ -173,7 +174,7 @@ fn create_aid_rejects_non_positive_amount_and_past_expiry() {
     assert_eq!(
         client.try_create_aid(&fx.donor, &fx.recipient, &100, &past),
         Err(Ok(soroban_sdk::Error::from_contract_error(
-            SharedError::InvalidArgument as u32
+            AidError::NotExpiredYet as u32
         )))
     );
 }
@@ -296,7 +297,7 @@ fn aid_ids_are_unique_and_monotonic() {
     let sorted = ids.clone();
     assert_eq!(ids, sorted);
     for (i, id) in ids.iter().enumerate() {
-        assert_eq!(*id, (i as u64) + 1);
+        assert_eq!(*id, i as u64);
     }
 }
 

@@ -2,7 +2,7 @@
 
 extern crate std;
 
-use soroban_sdk::{testutils::Address as _, Address, Env};
+use soroban_sdk::{contract, contractimpl, testutils::Address as _, Address, Env};
 
 use crate::{
     auth::{
@@ -13,17 +13,29 @@ use crate::{
     storage::set_paused,
 };
 
+#[contract]
+pub struct DummyAuthContract;
+
+#[contractimpl]
+impl DummyAuthContract {
+    pub fn noop(_env: Env) {}
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Creates a fresh environment and registers a random admin address.
-fn setup() -> (Env, Address) {
+/// Creates a fresh environment, registers a dummy contract, and sets a random admin address.
+/// Returns (env, contract_id, admin).
+fn setup() -> (Env, Address, Address) {
     let env = Env::default();
     env.mock_all_auths();
     let admin = Address::generate(&env);
-    set_admin(&env, &admin);
-    (env, admin)
+    let contract_id = env.register_contract(None, DummyAuthContract);
+    env.as_contract(&contract_id, || {
+        set_admin(&env, &admin);
+    });
+    (env, contract_id, admin)
 }
 
 // ---------------------------------------------------------------------------
@@ -32,15 +44,19 @@ fn setup() -> (Env, Address) {
 
 #[test]
 fn test_require_admin_succeeds_for_admin() {
-    let (env, admin) = setup();
-    assert_eq!(require_admin(&env, &admin), Ok(()));
+    let (env, contract_id, admin) = setup();
+    env.as_contract(&contract_id, || {
+        assert_eq!(require_admin(&env, &admin), Ok(()));
+    });
 }
 
 #[test]
 fn test_require_admin_fails_for_non_admin() {
-    let (env, _admin) = setup();
+    let (env, contract_id, _admin) = setup();
     let other = Address::generate(&env);
-    assert_eq!(require_admin(&env, &other), Err(Error::Unauthorized));
+    env.as_contract(&contract_id, || {
+        assert_eq!(require_admin(&env, &other), Err(Error::Unauthorized));
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -49,47 +65,55 @@ fn test_require_admin_fails_for_non_admin() {
 
 #[test]
 fn test_grant_role_by_admin_succeeds() {
-    let (env, admin) = setup();
+    let (env, contract_id, admin) = setup();
     let user = Address::generate(&env);
-    let result = grant_role(&env, &admin, &user, Role::Upgrader);
-    assert_eq!(result, Ok(()));
-    assert!(has_role(&env, &user, Role::Upgrader));
+    env.as_contract(&contract_id, || {
+        let result = grant_role(&env, &admin, &user, Role::Upgrader);
+        assert_eq!(result, Ok(()));
+        assert!(has_role(&env, &user, Role::Upgrader));
+    });
 }
 
 #[test]
 fn test_grant_role_by_non_admin_fails() {
-    let (env, _admin) = setup();
+    let (env, contract_id, _admin) = setup();
     let attacker = Address::generate(&env);
     let user = Address::generate(&env);
-    let result = grant_role(&env, &attacker, &user, Role::Upgrader);
-    assert_eq!(result, Err(Error::Unauthorized));
-    assert!(!has_role(&env, &user, Role::Upgrader));
+    env.as_contract(&contract_id, || {
+        let result = grant_role(&env, &attacker, &user, Role::Upgrader);
+        assert_eq!(result, Err(Error::Unauthorized));
+        assert!(!has_role(&env, &user, Role::Upgrader));
+    });
 }
 
 #[test]
 fn test_revoke_role_by_admin_succeeds() {
-    let (env, admin) = setup();
+    let (env, contract_id, admin) = setup();
     let user = Address::generate(&env);
-    // Grant first, then revoke.
-    grant_role(&env, &admin, &user, Role::TreasuryManager).unwrap();
-    assert!(has_role(&env, &user, Role::TreasuryManager));
-
-    let result = revoke_role(&env, &admin, &user, Role::TreasuryManager);
-    assert_eq!(result, Ok(()));
-    assert!(!has_role(&env, &user, Role::TreasuryManager));
+    env.as_contract(&contract_id, || {
+        grant_role(&env, &admin, &user, Role::TreasuryManager).unwrap();
+        assert!(has_role(&env, &user, Role::TreasuryManager));
+    });
+    env.as_contract(&contract_id, || {
+        let result = revoke_role(&env, &admin, &user, Role::TreasuryManager);
+        assert_eq!(result, Ok(()));
+        assert!(!has_role(&env, &user, Role::TreasuryManager));
+    });
 }
 
 #[test]
 fn test_revoke_role_by_non_admin_fails() {
-    let (env, admin) = setup();
+    let (env, contract_id, admin) = setup();
     let attacker = Address::generate(&env);
     let user = Address::generate(&env);
-    grant_role(&env, &admin, &user, Role::Pauser).unwrap();
+    env.as_contract(&contract_id, || {
+        grant_role(&env, &admin, &user, Role::Pauser).unwrap();
 
-    let result = revoke_role(&env, &attacker, &user, Role::Pauser);
-    assert_eq!(result, Err(Error::Unauthorized));
-    // Role should still be present after the failed revocation.
-    assert!(has_role(&env, &user, Role::Pauser));
+        let result = revoke_role(&env, &attacker, &user, Role::Pauser);
+        assert_eq!(result, Err(Error::Unauthorized));
+        // Role should still be present after the failed revocation.
+        assert!(has_role(&env, &user, Role::Pauser));
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -98,44 +122,56 @@ fn test_revoke_role_by_non_admin_fails() {
 
 #[test]
 fn test_require_role_passes_when_role_held() {
-    let (env, admin) = setup();
+    let (env, contract_id, admin) = setup();
     let user = Address::generate(&env);
-    grant_role(&env, &admin, &user, Role::Upgrader).unwrap();
-    assert_eq!(require_role(&env, &user, Role::Upgrader), Ok(()));
+    env.as_contract(&contract_id, || {
+        grant_role(&env, &admin, &user, Role::Upgrader).unwrap();
+        assert_eq!(require_role(&env, &user, Role::Upgrader), Ok(()));
+    });
 }
 
 #[test]
 fn test_require_role_fails_when_role_not_held() {
-    let (env, _admin) = setup();
+    let (env, contract_id, _admin) = setup();
     let user = Address::generate(&env);
-    assert_eq!(
-        require_role(&env, &user, Role::TreasuryManager),
-        Err(Error::Unauthorized)
-    );
+    env.as_contract(&contract_id, || {
+        assert_eq!(
+            require_role(&env, &user, Role::TreasuryManager),
+            Err(Error::Unauthorized)
+        );
+    });
 }
 
 #[test]
 fn test_require_role_fails_after_role_revoked() {
-    let (env, admin) = setup();
+    let (env, contract_id, admin) = setup();
     let user = Address::generate(&env);
-    grant_role(&env, &admin, &user, Role::Pauser).unwrap();
-    revoke_role(&env, &admin, &user, Role::Pauser).unwrap();
-    assert_eq!(
-        require_role(&env, &user, Role::Pauser),
-        Err(Error::Unauthorized)
-    );
+    env.as_contract(&contract_id, || {
+        grant_role(&env, &admin, &user, Role::Pauser).unwrap();
+    });
+    env.as_contract(&contract_id, || {
+        revoke_role(&env, &admin, &user, Role::Pauser).unwrap();
+    });
+    env.as_contract(&contract_id, || {
+        assert_eq!(
+            require_role(&env, &user, Role::Pauser),
+            Err(Error::Unauthorized)
+        );
+    });
 }
 
 #[test]
 fn test_roles_are_independent_per_role_variant() {
-    let (env, admin) = setup();
+    let (env, contract_id, admin) = setup();
     let user = Address::generate(&env);
-    grant_role(&env, &admin, &user, Role::Upgrader).unwrap();
-    // Holding Upgrader does not grant TreasuryManager.
-    assert_eq!(
-        require_role(&env, &user, Role::TreasuryManager),
-        Err(Error::Unauthorized)
-    );
+    env.as_contract(&contract_id, || {
+        grant_role(&env, &admin, &user, Role::Upgrader).unwrap();
+        // Holding Upgrader does not grant TreasuryManager.
+        assert_eq!(
+            require_role(&env, &user, Role::TreasuryManager),
+            Err(Error::Unauthorized)
+        );
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -144,25 +180,31 @@ fn test_roles_are_independent_per_role_variant() {
 
 #[test]
 fn test_require_not_paused_passes_when_active() {
-    let (env, _admin) = setup();
-    // Default state: not paused.
-    assert_eq!(require_not_paused(&env), Ok(()));
+    let (env, contract_id, _admin) = setup();
+    env.as_contract(&contract_id, || {
+        // Default state: not paused.
+        assert_eq!(require_not_paused(&env), Ok(()));
+    });
 }
 
 #[test]
 fn test_require_not_paused_blocks_when_paused() {
-    let (env, _admin) = setup();
-    set_paused(&env, true);
-    assert_eq!(require_not_paused(&env), Err(Error::ContractPaused));
+    let (env, contract_id, _admin) = setup();
+    env.as_contract(&contract_id, || {
+        set_paused(&env, true);
+        assert_eq!(require_not_paused(&env), Err(Error::ContractPaused));
+    });
 }
 
 #[test]
 fn test_require_not_paused_passes_after_resume() {
-    let (env, _admin) = setup();
-    set_paused(&env, true);
-    // Resume the contract.
-    set_paused(&env, false);
-    assert_eq!(require_not_paused(&env), Ok(()));
+    let (env, contract_id, _admin) = setup();
+    env.as_contract(&contract_id, || {
+        set_paused(&env, true);
+        // Resume the contract.
+        set_paused(&env, false);
+        assert_eq!(require_not_paused(&env), Ok(()));
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -171,6 +213,8 @@ fn test_require_not_paused_passes_after_resume() {
 
 #[test]
 fn test_get_admin_returns_set_admin() {
-    let (env, admin) = setup();
-    assert_eq!(get_admin(&env), admin);
+    let (env, contract_id, admin) = setup();
+    env.as_contract(&contract_id, || {
+        assert_eq!(get_admin(&env), admin);
+    });
 }

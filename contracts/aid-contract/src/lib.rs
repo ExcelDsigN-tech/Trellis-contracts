@@ -1,15 +1,4 @@
 #![no_std]
-       7-aid-initialization
-use soroban_sdk::{
-    contract, contractimpl, contracterror, panic_with_error, token, symbol_short, Address, Env, Symbol, Map,
-};
-use shared::events::{emit_aid_created, emit_action_executed, emit_module_initialized, emit_permission_changed};
-use shared::{emit, AID_CLAIMED, AID_CREATED, AID_REFUNDED, AID_SETTLED, Error};
-use shared::storage::is_paused;
-
-const KEY_AIDS: Symbol = symbol_short!("aids");
-
-       main
 
 use shared::events::{
     emit_action_executed, emit_aid_created, emit_module_initialized, emit_permission_changed,
@@ -89,14 +78,11 @@ impl AidContract {
 
         // Store configuration
         shared::auth::set_admin(&env, &admin);
-        7-aid-initialization
         storage::set_treasury(&env, &treasury);
         storage::set_token(&env, &token);
         storage::set_default_expiry(&env, default_expiry_secs);
         storage::set_initialized(&env);
 
-
-        main
         emit_module_initialized(
             &env,
             symbol_short!("aid"),
@@ -104,7 +90,6 @@ impl AidContract {
             &admin,
             env.ledger().timestamp(),
         );
-        7-aid-initialization
 
         Ok(())
     }
@@ -167,11 +152,6 @@ impl AidContract {
         }
 
         Ok(())
-
-        env.storage()
-            .instance()
-            .set(&storage::DataKey::Token, &token);
-        main
     }
 
     // -----------------------------------------------------------------------
@@ -227,7 +207,6 @@ impl AidContract {
             status: AidStatus::Pending,
         };
         set_aid(&env, aid_id, &record);
-        set_aid_counter(&env, aid_id);
 
         let mut aids: Map<u64, AidRecord> = env
             .storage()

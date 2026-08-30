@@ -859,16 +859,12 @@ mod tests {
             setup();
         let referral = ReferralContractClient::new(&env, &referral_id);
 
-        referral.set_tier_config(
-            &admin,
-            &soroban_sdk::vec![&env, 10_000_i128],
-            &1,
-            &i128::MAX,
-        );
+        // Set reward cap equal to the first accrual amount so the cap kicks in
+        let max_cap: i128 = 10_000;
+        referral.set_tier_config(&admin, &soroban_sdk::vec![&env, 10_000_i128], &1, &max_cap);
         referral.set_referrer(&admin, &referred, &tier_one);
 
         // Accrue up to the cap
-        let max_cap: i128 = 10_000;
         assert_eq!(referral.accrue(&admin, &referred, &max_cap), max_cap);
         assert_eq!(referral.accrued_balance(&tier_one), max_cap);
 
