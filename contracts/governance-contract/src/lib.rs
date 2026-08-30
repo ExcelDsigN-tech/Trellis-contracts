@@ -1129,9 +1129,11 @@ mod tests {
         client.set_param(&admin, &key, &value);
         let all_events = env.events().all();
         // The last event is ActionExecuted; find the ParameterChanged event
-        let param_event = all_events.iter().rev().find(|e| {
-            e.1 == (shared::events::PARAMETER_CHANGED,).into_val(&env)
-        }).expect("expected PARAMETER_CHANGED event");
+        let param_event = all_events
+            .iter()
+            .rev()
+            .find(|e| e.1 == (shared::events::PARAMETER_CHANGED,).into_val(&env))
+            .expect("expected PARAMETER_CHANGED event");
         assert_eq!(
             ParameterChangedEvent::try_from_val(&env, &param_event.2).unwrap(),
             ParameterChangedEvent { key, value }

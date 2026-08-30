@@ -139,7 +139,7 @@ fn validate_amount(amount: i128) -> Result<(), Error> {
 
 /// Returns `Ok(())` when `rate_bps` is in the inclusive range `0..=10_000`.
 fn validate_fee_rate(rate_bps: i128) -> Result<(), Error> {
-    if rate_bps < 0 || rate_bps > MAX_FEE_BPS {
+    if !(0..=MAX_FEE_BPS).contains(&rate_bps) {
         return Err(Error::PaymentInvalidFeeRate);
     }
     Ok(())
@@ -152,7 +152,9 @@ fn validate_fee_rate(rate_bps: i128) -> Result<(), Error> {
 /// Returns the next escrow ID and increments the sequence counter.
 fn next_escrow_id(env: &Env) -> Result<u64, Error> {
     let current: u64 = persistent_get(env, &ESCROW_ID_SEQ).unwrap_or(0);
-    let next = current.checked_add(1).ok_or(Error::PaymentEscrowIdOverflow)?;
+    let next = current
+        .checked_add(1)
+        .ok_or(Error::PaymentEscrowIdOverflow)?;
     persistent_set(env, &ESCROW_ID_SEQ, &next);
     Ok(next)
 }
@@ -278,11 +280,7 @@ pub fn calculate_fee(_env: &Env, amount: i128, rate_bps: i128) -> Result<i128, E
 /// Calculate both the fee and the net amount (amount minus fee) atomically.
 ///
 /// Returns `(fee, net_amount)`.
-pub fn calculate_fee_split(
-    env: &Env,
-    amount: i128,
-    rate_bps: i128,
-) -> Result<(i128, i128), Error> {
+pub fn calculate_fee_split(env: &Env, amount: i128, rate_bps: i128) -> Result<(i128, i128), Error> {
     let fee = calculate_fee(env, amount, rate_bps)?;
     let net = amount.checked_sub(fee).ok_or(Error::PaymentFeeOverflow)?;
     Ok((fee, net))
@@ -614,7 +612,14 @@ mod tests {
             expiry_ledger: u32,
         ) -> Result<u64, Error> {
             depositor.require_auth();
-            super::create_escrow(&env, &token, &depositor, &beneficiary, amount, expiry_ledger)
+            super::create_escrow(
+                &env,
+                &token,
+                &depositor,
+                &beneficiary,
+                amount,
+                expiry_ledger,
+            )
         }
 
         pub fn release_escrow(env: Env, token: Address, escrow_id: u64) -> Result<(), Error> {
@@ -978,13 +983,8 @@ mod tests {
         let expiry = env.ledger().sequence() + 100;
 
         // Create escrow
-        let escrow_id = client.create_escrow(
-            &token_addr,
-            &depositor,
-            &beneficiary,
-            &2_000,
-            &expiry,
-        );
+        let escrow_id =
+            client.create_escrow(&token_addr, &depositor, &beneficiary, &2_000, &expiry);
         assert_eq!(escrow_id, 1);
         assert_eq!(token_client.balance(&depositor), 3_000);
         assert_eq!(token_client.balance(&contract_id), 2_000);
@@ -1025,13 +1025,8 @@ mod tests {
 
         let expiry = env.ledger().sequence() + 100;
 
-        let escrow_id = client.create_escrow(
-            &token_addr,
-            &depositor,
-            &beneficiary,
-            &2_000,
-            &expiry,
-        );
+        let escrow_id =
+            client.create_escrow(&token_addr, &depositor, &beneficiary, &2_000, &expiry);
 
         // Refund escrow
         client.refund_escrow(&token_addr, &escrow_id);
@@ -1057,8 +1052,7 @@ mod tests {
         let beneficiary = Address::generate(&env);
         let expiry = env.ledger().sequence() + 100;
 
-        let result =
-            client.try_create_escrow(&token_addr, &depositor, &beneficiary, &0, &expiry);
+        let result = client.try_create_escrow(&token_addr, &depositor, &beneficiary, &0, &expiry);
         assert_eq!(result, Err(Ok(Error::PaymentInvalidAmount)));
     }
 
@@ -1077,8 +1071,7 @@ mod tests {
         let beneficiary = Address::generate(&env);
 
         let past = env.ledger().sequence(); // current = not strictly greater
-        let result =
-            client.try_create_escrow(&token_addr, &depositor, &beneficiary, &100, &past);
+        let result = client.try_create_escrow(&token_addr, &depositor, &beneficiary, &100, &past);
         assert_eq!(result, Err(Ok(Error::InvalidArgument)));
     }
 
@@ -1114,13 +1107,8 @@ mod tests {
         asset_client.mint(&depositor, &5_000);
 
         let expiry = env.ledger().sequence() + 100;
-        let escrow_id = client.create_escrow(
-            &token_addr,
-            &depositor,
-            &beneficiary,
-            &2_000,
-            &expiry,
-        );
+        let escrow_id =
+            client.create_escrow(&token_addr, &depositor, &beneficiary, &2_000, &expiry);
         client.release_escrow(&token_addr, &escrow_id);
 
         let result = client.try_release_escrow(&token_addr, &escrow_id);
@@ -1144,13 +1132,8 @@ mod tests {
         asset_client.mint(&depositor, &5_000);
 
         let expiry = env.ledger().sequence() + 100;
-        let escrow_id = client.create_escrow(
-            &token_addr,
-            &depositor,
-            &beneficiary,
-            &2_000,
-            &expiry,
-        );
+        let escrow_id =
+            client.create_escrow(&token_addr, &depositor, &beneficiary, &2_000, &expiry);
         client.refund_escrow(&token_addr, &escrow_id);
 
         let result = client.try_release_escrow(&token_addr, &escrow_id);
@@ -1174,13 +1157,8 @@ mod tests {
         asset_client.mint(&depositor, &5_000);
 
         let expiry = env.ledger().sequence() + 100;
-        let escrow_id = client.create_escrow(
-            &token_addr,
-            &depositor,
-            &beneficiary,
-            &2_000,
-            &expiry,
-        );
+        let escrow_id =
+            client.create_escrow(&token_addr, &depositor, &beneficiary, &2_000, &expiry);
         client.release_escrow(&token_addr, &escrow_id);
 
         let result = client.try_refund_escrow(&token_addr, &escrow_id);
@@ -1204,13 +1182,8 @@ mod tests {
         asset_client.mint(&depositor, &5_000);
 
         let expiry = env.ledger().sequence() + 100;
-        let escrow_id = client.create_escrow(
-            &token_addr,
-            &depositor,
-            &beneficiary,
-            &2_000,
-            &expiry,
-        );
+        let escrow_id =
+            client.create_escrow(&token_addr, &depositor, &beneficiary, &2_000, &expiry);
         client.refund_escrow(&token_addr, &escrow_id);
 
         let result = client.try_refund_escrow(&token_addr, &escrow_id);
@@ -1234,13 +1207,8 @@ mod tests {
         asset_client.mint(&depositor, &5_000);
 
         let expiry = env.ledger().sequence() + 5;
-        let escrow_id = client.create_escrow(
-            &token_addr,
-            &depositor,
-            &beneficiary,
-            &2_000,
-            &expiry,
-        );
+        let escrow_id =
+            client.create_escrow(&token_addr, &depositor, &beneficiary, &2_000, &expiry);
 
         // Advance past expiry
         env.ledger().with_mut(|l| {
@@ -1269,13 +1237,8 @@ mod tests {
         asset_client.mint(&depositor, &5_000);
 
         let expiry = env.ledger().sequence() + 5;
-        let escrow_id = client.create_escrow(
-            &token_addr,
-            &depositor,
-            &beneficiary,
-            &2_000,
-            &expiry,
-        );
+        let escrow_id =
+            client.create_escrow(&token_addr, &depositor, &beneficiary, &2_000, &expiry);
 
         // Advance past expiry
         env.ledger().with_mut(|l| {
@@ -1341,13 +1304,8 @@ mod tests {
         asset_client.mint(&depositor, &5_000);
 
         let expiry = env.ledger().sequence() + 100;
-        let escrow_id = client.create_escrow(
-            &token_addr,
-            &depositor,
-            &beneficiary,
-            &2_000,
-            &expiry,
-        );
+        let escrow_id =
+            client.create_escrow(&token_addr, &depositor, &beneficiary, &2_000, &expiry);
 
         // Release well before expiry
         client.release_escrow(&token_addr, &escrow_id);

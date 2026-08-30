@@ -841,7 +841,7 @@ mod tests {
         let transfers = Vec::from_array(&env, [make_transfer(&recipient, 100)]);
         let result = client.try_run_multi_transfer(&caller, &_token_addr, &transfers, &config);
         assert!(result.is_err()); // Reentrancy guard blocks it
-        // Clean up
+                                  // Clean up
         env.as_contract(&contract_id, || {
             crate::storage::temporary_remove(&env, &REENTRANCY_KEY);
         });

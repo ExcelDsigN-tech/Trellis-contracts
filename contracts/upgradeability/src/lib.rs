@@ -870,8 +870,7 @@ mod tests {
 
         client.register_contract(&admin, &contract_id, &symbol_short!("oracle"), &1, &wasm);
 
-        let entry = client
-            .get_registry_entry_by_name(&symbol_short!("oracle"));
+        let entry = client.get_registry_entry_by_name(&symbol_short!("oracle"));
         assert_eq!(entry.contract_id, contract_id);
     }
 
@@ -1009,7 +1008,8 @@ mod tests {
         client.propose_upgrade(&admin, &contract_id, &wasm_v2, &2, &note);
 
         let note2 = soroban_sdk::String::from_str(&env, "second");
-        let result = client.try_propose_upgrade(&admin, &contract_id, &fake_hash(&env, 3), &3, &note2);
+        let result =
+            client.try_propose_upgrade(&admin, &contract_id, &fake_hash(&env, 3), &3, &note2);
         assert_eq!(result, Err(Ok(UpgradeError::AlreadyPending)));
     }
 
@@ -1035,11 +1035,7 @@ mod tests {
         };
         env.as_contract(&registry_id, || {
             instance_set(&env, &(KEY_REG_ENTRY, target.clone()), &entry);
-            instance_set(
-                &env,
-                &(KEY_CONTRACT_BY_NAME, symbol_short!("aid")),
-                &target,
-            );
+            instance_set(&env, &(KEY_CONTRACT_BY_NAME, symbol_short!("aid")), &target);
         });
 
         let note = soroban_sdk::String::from_str(&env, "test");

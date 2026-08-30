@@ -20,7 +20,10 @@ use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, E
 use shared::auth;
 use shared::errors::Error;
 use shared::events::emit_action_executed;
-use shared::payments::{self, create_escrow, get_escrow, release_escrow, refund_escrow, safe_transfer_from_contract, EscrowRecord};
+use shared::payments::{
+    self, create_escrow, get_escrow, refund_escrow, release_escrow, safe_transfer_from_contract,
+    EscrowRecord,
+};
 use shared::storage::{instance_get, instance_set};
 
 // ===========================================================================
@@ -69,7 +72,7 @@ impl ExamplePaymentsContract {
         fee_rate_bps: i128,
         fee_recipient: Address,
     ) -> Result<(), Error> {
-        if fee_rate_bps < 0 || fee_rate_bps > 10_000 {
+        if !(0..=10_000).contains(&fee_rate_bps) {
             return Err(Error::PaymentInvalidFeeRate);
         }
 
@@ -96,7 +99,7 @@ impl ExamplePaymentsContract {
 
     /// Update the fee rate. Admin only.
     pub fn set_fee_rate(env: Env, caller: Address, new_rate_bps: i128) -> Result<(), Error> {
-        if new_rate_bps < 0 || new_rate_bps > 10_000 {
+        if !(0..=10_000).contains(&new_rate_bps) {
             return Err(Error::PaymentInvalidFeeRate);
         }
         auth::require_admin(&env, &caller)?;
@@ -150,7 +153,11 @@ impl ExamplePaymentsContract {
         instance_set(&env, &key, &new_balance);
 
         let total: i128 = instance_get(&env, &TOTAL_DEPOSITS).unwrap_or(0);
-        instance_set(&env, &TOTAL_DEPOSITS, &total.checked_add(amount).ok_or(Error::Overflow)?);
+        instance_set(
+            &env,
+            &TOTAL_DEPOSITS,
+            &total.checked_add(amount).ok_or(Error::Overflow)?,
+        );
 
         shared::events::emit(
             &env,
@@ -289,15 +296,18 @@ impl ExamplePaymentsContract {
         depositor.require_auth();
         let token: Address = instance_get(&env, &TOKEN).ok_or(Error::NotFound)?;
 
-        create_escrow(&env, &token, &depositor, &beneficiary, amount, expiry_ledger)
+        create_escrow(
+            &env,
+            &token,
+            &depositor,
+            &beneficiary,
+            amount,
+            expiry_ledger,
+        )
     }
 
     /// Release an escrow deposit to the beneficiary. Admin only.
-    pub fn release_escrow_entry(
-        env: Env,
-        caller: Address,
-        escrow_id: u64,
-    ) -> Result<(), Error> {
+    pub fn release_escrow_entry(env: Env, caller: Address, escrow_id: u64) -> Result<(), Error> {
         auth::require_admin(&env, &caller)?;
         let token: Address = instance_get(&env, &TOKEN).ok_or(Error::NotFound)?;
 
@@ -305,11 +315,7 @@ impl ExamplePaymentsContract {
     }
 
     /// Refund an escrow deposit back to the depositor. Admin only.
-    pub fn refund_escrow_entry(
-        env: Env,
-        caller: Address,
-        escrow_id: u64,
-    ) -> Result<(), Error> {
+    pub fn refund_escrow_entry(env: Env, caller: Address, escrow_id: u64) -> Result<(), Error> {
         auth::require_admin(&env, &caller)?;
         let token: Address = instance_get(&env, &TOKEN).ok_or(Error::NotFound)?;
 

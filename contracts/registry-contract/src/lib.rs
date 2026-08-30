@@ -282,7 +282,10 @@ mod tests {
 
     use super::*;
     use shared::errors::Error;
-    use soroban_sdk::{testutils::{Address as _, Ledger as _}, Bytes, Symbol};
+    use soroban_sdk::{
+        testutils::{Address as _, Ledger as _},
+        Bytes, Symbol,
+    };
 
     fn create_test_hash(env: &Env) -> Bytes {
         // Create a 32-byte hash for testing

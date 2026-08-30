@@ -1,6 +1,5 @@
 use soroban_sdk::{contracttype, Address, Vec};
 
-
 /// Contract configuration stored in instance storage.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]

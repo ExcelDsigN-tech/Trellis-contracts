@@ -861,12 +861,7 @@ mod tests {
 
         // Set reward cap equal to the first accrual amount so the cap kicks in
         let max_cap: i128 = 10_000;
-        referral.set_tier_config(
-            &admin,
-            &soroban_sdk::vec![&env, 10_000_i128],
-            &1,
-            &max_cap,
-        );
+        referral.set_tier_config(&admin, &soroban_sdk::vec![&env, 10_000_i128], &1, &max_cap);
         referral.set_referrer(&admin, &referred, &tier_one);
 
         // Accrue up to the cap

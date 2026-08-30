@@ -209,7 +209,9 @@ fn escrow_create_and_release() {
     mint_tokens(&fx.env, &fx.token_addr, &depositor, 5_000);
 
     let expiry = fx.env.ledger().sequence() + 100;
-    let escrow_id = fx.client.create_escrow_entry(&depositor, &beneficiary, &2_000, &expiry);
+    let escrow_id = fx
+        .client
+        .create_escrow_entry(&depositor, &beneficiary, &2_000, &expiry);
 
     assert_eq!(escrow_id, 1);
 
@@ -229,7 +231,9 @@ fn escrow_create_and_refund() {
     mint_tokens(&fx.env, &fx.token_addr, &depositor, 5_000);
 
     let expiry = fx.env.ledger().sequence() + 100;
-    let escrow_id = fx.client.create_escrow_entry(&depositor, &beneficiary, &2_000, &expiry);
+    let escrow_id = fx
+        .client
+        .create_escrow_entry(&depositor, &beneficiary, &2_000, &expiry);
 
     fx.client.refund_escrow_entry(&fx.admin, &escrow_id);
     assert_eq!(fx.token_client.balance(&depositor), 5_000);
@@ -247,7 +251,9 @@ fn escrow_release_requires_admin() {
     mint_tokens(&fx.env, &fx.token_addr, &depositor, 5_000);
 
     let expiry = fx.env.ledger().sequence() + 100;
-    let escrow_id = fx.client.create_escrow_entry(&depositor, &beneficiary, &2_000, &expiry);
+    let escrow_id = fx
+        .client
+        .create_escrow_entry(&depositor, &beneficiary, &2_000, &expiry);
 
     let result = fx.client.try_release_escrow_entry(&non_admin, &escrow_id);
     assert_eq!(result, Err(Ok(Error::Unauthorized)));
@@ -261,7 +267,9 @@ fn escrow_release_after_expiry_fails() {
     mint_tokens(&fx.env, &fx.token_addr, &depositor, 5_000);
 
     let expiry = fx.env.ledger().sequence() + 5;
-    let escrow_id = fx.client.create_escrow_entry(&depositor, &beneficiary, &2_000, &expiry);
+    let escrow_id = fx
+        .client
+        .create_escrow_entry(&depositor, &beneficiary, &2_000, &expiry);
 
     // Advance past expiry
     fx.env.ledger().with_mut(|l| {
