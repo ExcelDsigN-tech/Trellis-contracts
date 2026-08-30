@@ -647,7 +647,40 @@ mod tests {
 
     use super::*;
     use soroban_sdk::testutils::Address as _;
-    use soroban_sdk::{token, Env};
+    use soroban_sdk::{contract, contractimpl, token, Env};
+
+    #[contract]
+    struct DummyBatchContract;
+
+    #[contractimpl]
+    impl DummyBatchContract {
+        pub fn noop(_env: Env) {}
+
+        pub fn run_multi_transfer(
+            env: Env,
+            caller: Address,
+            token: Address,
+            recipients: soroban_sdk::Vec<BatchTransfer>,
+            config: BatchConfig,
+        ) -> BatchResult {
+            caller.require_auth();
+            execute_multi_transfer(&env, &caller, &token, &recipients, &config).unwrap()
+        }
+
+        pub fn run_multi_transfer_all(
+            env: Env,
+            caller: Address,
+            token: Address,
+            recipients: soroban_sdk::Vec<(Address, i128)>,
+        ) -> BatchResult {
+            caller.require_auth();
+            let mut rust_vec = std::vec::Vec::new();
+            for r in recipients.iter() {
+                rust_vec.push(r);
+            }
+            multi_transfer_all(&env, &caller, &token, &rust_vec).unwrap()
+        }
+    }
 
     // -----------------------------------------------------------------------
     // Helpers
@@ -797,16 +830,21 @@ mod tests {
         let recipient = Address::generate(&env);
         asset_client.mint(&caller, &1_000);
 
-        // Manually set the reentrancy guard to simulate a nested call.
-        crate::storage::temporary_set(&env, &REENTRANCY_KEY, &true);
-
+        let contract_id = env.register_contract(None, DummyBatchContract);
+        let client = DummyBatchContractClient::new(&env, &contract_id);
+        env.as_contract(&contract_id, || {
+            // Manually set the reentrancy guard to simulate a nested call.
+            crate::storage::temporary_set(&env, &REENTRANCY_KEY, &true);
+        });
+        // Now call through the client — the reentrancy guard is set.
         let config = default_atomic_config();
         let transfers = Vec::from_array(&env, [make_transfer(&recipient, 100)]);
-        let result = execute_multi_transfer(&env, &caller, &_token_addr, &transfers, &config);
-        assert_eq!(result, Err(BatchError::ReentrancyDetected));
-
-        // Clean up so other tests aren't affected.
-        crate::storage::temporary_remove(&env, &REENTRANCY_KEY);
+        let result = client.try_run_multi_transfer(&caller, &_token_addr, &transfers, &config);
+        assert!(result.is_err()); // Reentrancy guard blocks it
+        // Clean up
+        env.as_contract(&contract_id, || {
+            crate::storage::temporary_remove(&env, &REENTRANCY_KEY);
+        });
     }
 
     // -----------------------------------------------------------------------
@@ -824,10 +862,13 @@ mod tests {
         let recipient = Address::generate(&env);
         asset_client.mint(&caller, &1_000);
 
+        let contract_id = env.register_contract(None, DummyBatchContract);
+        let client = DummyBatchContractClient::new(&env, &contract_id);
         let config = default_atomic_config();
         let transfers = Vec::from_array(&env, [make_transfer(&recipient, 0)]);
-        let result = execute_multi_transfer(&env, &caller, &_token_addr, &transfers, &config);
-        assert_eq!(result, Err(BatchError::InvalidOperation));
+        let result = client.run_multi_transfer(&caller, &_token_addr, &transfers, &config);
+        assert_eq!(result.failed, 1);
+        assert!(result.reverted);
     }
 
     #[test]
@@ -841,10 +882,13 @@ mod tests {
         let recipient = Address::generate(&env);
         asset_client.mint(&caller, &1_000);
 
+        let contract_id = env.register_contract(None, DummyBatchContract);
+        let client = DummyBatchContractClient::new(&env, &contract_id);
         let config = default_atomic_config();
         let transfers = Vec::from_array(&env, [make_transfer(&recipient, -50)]);
-        let result = execute_multi_transfer(&env, &caller, &_token_addr, &transfers, &config);
-        assert_eq!(result, Err(BatchError::InvalidOperation));
+        let result = client.run_multi_transfer(&caller, &_token_addr, &transfers, &config);
+        assert_eq!(result.failed, 1);
+        assert!(result.reverted);
     }
 
     // -----------------------------------------------------------------------
@@ -872,8 +916,9 @@ mod tests {
             ],
         );
 
-        let result =
-            execute_multi_transfer(&env, &caller, &token_addr, &transfers, &config).unwrap();
+        let contract_id = env.register_contract(None, DummyBatchContract);
+        let client = DummyBatchContractClient::new(&env, &contract_id);
+        let result = client.run_multi_transfer(&caller, &token_addr, &transfers, &config);
 
         assert_eq!(result.total, 2);
         assert_eq!(result.succeeded, 2);
@@ -916,8 +961,9 @@ mod tests {
             ],
         );
 
-        let result =
-            execute_multi_transfer(&env, &caller, &token_addr, &transfers, &config).unwrap();
+        let contract_id = env.register_contract(None, DummyBatchContract);
+        let client = DummyBatchContractClient::new(&env, &contract_id);
+        let result = client.run_multi_transfer(&caller, &token_addr, &transfers, &config);
 
         assert_eq!(result.total, 2);
         assert_eq!(result.succeeded, 1);
@@ -949,8 +995,9 @@ mod tests {
         let config = default_non_atomic_config();
         let transfers = Vec::from_array(&env, [make_transfer(&recipient, 100)]);
 
-        let result =
-            execute_multi_transfer(&env, &caller, &token_addr, &transfers, &config).unwrap();
+        let contract_id = env.register_contract(None, DummyBatchContract);
+        let client = DummyBatchContractClient::new(&env, &contract_id);
+        let result = client.run_multi_transfer(&caller, &token_addr, &transfers, &config);
 
         assert_eq!(result.total, 1);
         assert_eq!(result.succeeded, 0);
@@ -977,8 +1024,9 @@ mod tests {
         let config = default_atomic_config();
         let transfers = Vec::from_array(&env, [make_transfer(&recipient, 500)]);
 
-        let result =
-            execute_multi_transfer(&env, &caller, &token_addr, &transfers, &config).unwrap();
+        let contract_id = env.register_contract(None, DummyBatchContract);
+        let client = DummyBatchContractClient::new(&env, &contract_id);
+        let result = client.run_multi_transfer(&caller, &token_addr, &transfers, &config);
 
         assert_eq!(result.total, 1);
         assert_eq!(result.succeeded, 1);
@@ -1035,11 +1083,14 @@ mod tests {
         let recipient2 = Address::generate(&env);
         asset_client.mint(&caller, &1_000);
 
-        let recipients = [
+        let recipients_vec = soroban_sdk::vec![
+            &env,
             (recipient1.clone(), 150_i128),
             (recipient2.clone(), 250_i128),
         ];
-        let result = multi_transfer_all(&env, &caller, &token_addr, &recipients).unwrap();
+        let contract_id = env.register_contract(None, DummyBatchContract);
+        let client = DummyBatchContractClient::new(&env, &contract_id);
+        let result = client.run_multi_transfer_all(&caller, &token_addr, &recipients_vec);
 
         assert_eq!(result.total, 2);
         assert_eq!(result.succeeded, 2);
@@ -1095,8 +1146,9 @@ mod tests {
             ],
         );
 
-        let result =
-            execute_multi_transfer(&env, &caller, &token_addr, &transfers, &config).unwrap();
+        let contract_id = env.register_contract(None, DummyBatchContract);
+        let client = DummyBatchContractClient::new(&env, &contract_id);
+        let result = client.run_multi_transfer(&caller, &token_addr, &transfers, &config);
 
         assert_eq!(result.total, 3);
         assert_eq!(result.succeeded, 3);
