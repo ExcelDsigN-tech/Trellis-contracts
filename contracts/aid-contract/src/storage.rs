@@ -145,7 +145,7 @@ pub fn append_recipient_index(env: &Env, recipient: &Address, aid_id: u64) {
     let mut ids = get_recipient_index(env, recipient);
     ids.push_back(aid_id);
     persistent_set(env, &DataKey::RecipientIndex(recipient.clone()), &ids);
-
+}
 
 // ---------------------------------------------------------------------------
 // Treasury address — instance storage
@@ -187,4 +187,4 @@ pub fn is_initialized(env: &Env) -> bool {
 /// Mark the contract as initialized.
 pub fn set_initialized(env: &Env) {
     instance_set(env, &DataKey::Initialized, &true);
-}}
+}
