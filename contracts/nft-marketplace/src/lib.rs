@@ -17,6 +17,7 @@
 //! - **Marketplace fees** with governance-controlled splits
 
 #![no_std]
+#![allow(clippy::too_many_arguments)]
 
 extern crate std;
 
@@ -499,10 +500,10 @@ impl NftMarketplace {
         bid_increment_bps: i128,
         auto_extension_seconds: u64,
     ) -> Result<(), MarketError> {
-        if platform_fee_bps < 0 || platform_fee_bps > MAX_FEE_BPS {
+        if !(0..=MAX_FEE_BPS).contains(&platform_fee_bps) {
             return Err(MarketError::InvalidArgument);
         }
-        if bid_increment_bps < 0 || bid_increment_bps > 5_000 {
+        if !(0..=5_000).contains(&bid_increment_bps) {
             return Err(MarketError::InvalidArgument);
         }
 
@@ -541,7 +542,7 @@ impl NftMarketplace {
         new_fee_bps: i128,
     ) -> Result<(), MarketError> {
         require_admin(&env, &caller)?;
-        if new_fee_bps < 0 || new_fee_bps > MAX_FEE_BPS {
+        if !(0..=MAX_FEE_BPS).contains(&new_fee_bps) {
             return Err(MarketError::InvalidArgument);
         }
         instance_set(&env, &KEY_PLATFORM_FEE_BPS, &new_fee_bps);
@@ -562,7 +563,7 @@ impl NftMarketplace {
 
     pub fn set_bid_increment(env: Env, caller: Address, bps: i128) -> Result<(), MarketError> {
         require_admin(&env, &caller)?;
-        if bps < 0 || bps > 5_000 {
+        if !(0..=5_000).contains(&bps) {
             return Err(MarketError::InvalidArgument);
         }
         instance_set(&env, &KEY_BID_INCREMENT_BPS, &bps);

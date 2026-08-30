@@ -415,6 +415,7 @@ pub fn emit_role_granted(
 // ---------------------------------------------------------------------------
 
 /// Topics: ("nft", "listed")
+#[allow(clippy::too_many_arguments)]
 pub fn emit_nft_listed(
     env: &Env,
     listing_id: u64,
