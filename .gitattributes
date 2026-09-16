@@ -1,0 +1,16 @@
+# Store LF in the repository; check out native line endings on Windows.
+* text=auto
+
+# Always LF in the working tree too — these are parsed or executed on Linux CI,
+# where a CRLF shebang or manifest breaks the build.
+*.sh    text eol=lf
+*.rs    text eol=lf
+*.toml  text eol=lf
+*.md    text eol=lf
+*.svg   text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+
+# Binary assets — never convert.
+*.png binary
+*.ico binary
