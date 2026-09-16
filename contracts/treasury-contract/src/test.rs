@@ -5,7 +5,8 @@ use soroban_sdk::{
     testutils::{Address as _, Events},
     Address, Env,
 };
-
+// ===========================================================================
+// Test helpers
 fn setup(env: &Env) -> (TreasuryContractClient<'static>, Address, i128) {
     let contract_id = env.register_contract(None, TreasuryContract);
     let client = TreasuryContractClient::new(env, &contract_id);
@@ -14,7 +15,8 @@ fn setup(env: &Env) -> (TreasuryContractClient<'static>, Address, i128) {
     client.initialize(&admin, &limit);
     (client, admin, limit)
 }
-
+// ===========================================================================
+// Tests
 #[test]
 fn test_withdraw_success_decrements_balance_and_emits_event() {
     let env = Env::default();
@@ -34,7 +36,8 @@ fn test_withdraw_success_decrements_balance_and_emits_event() {
     );
     assert_eq!(client.category_balance(&category), 300);
 }
-
+// ===========================================================================
+// Test: Withdraw Rejections
 #[test]
 fn test_withdraw_rejects_non_manager() {
     let env = Env::default();
@@ -50,7 +53,8 @@ fn test_withdraw_rejects_non_manager() {
     let result = client.try_withdraw(&stranger, &recipient, &100, &category);
     assert_eq!(result, Err(Ok(Error::Unauthorized)));
 }
-
+// ===========================================================================
+// Test: Withdraw Rejections
 #[test]
 fn test_withdraw_rejects_amount_above_limit() {
     let env = Env::default();
@@ -66,7 +70,8 @@ fn test_withdraw_rejects_amount_above_limit() {
     let result = client.try_withdraw(&admin, &recipient, &over_limit, &category);
     assert_eq!(result, Err(Ok(Error::WithdrawalLimitExceeded)));
 }
-
+// ===========================================================================
+// Test: Withdraw Rejections
 #[test]
 fn test_withdraw_rejects_insufficient_category_balance() {
     let env = Env::default();
@@ -82,6 +87,8 @@ fn test_withdraw_rejects_insufficient_category_balance() {
     assert_eq!(result, Err(Ok(Error::InsufficientBalance)));
 }
 
+// ===========================================================================
+// Test: Withdraw Rejections
 #[test]
 fn test_withdraw_rejects_zero_or_negative_amount() {
     let env = Env::default();
@@ -97,6 +104,8 @@ fn test_withdraw_rejects_zero_or_negative_amount() {
     assert_eq!(result, Err(Ok(Error::InvalidArgument)));
 }
 
+// ===========================================================================
+// Test: Admin can add and remove treasury managers
 #[test]
 fn test_admin_can_add_and_remove_treasury_manager() {
     let env = Env::default();
@@ -129,7 +138,8 @@ fn test_admin_can_add_and_remove_treasury_manager() {
 /// is this contract's own address (whichever instance is registered).
 #[contract]
 struct MockReferralCaller;
-
+// ===========================================================================
+// Test: Referral contract can call distribute_reward
 #[contractimpl]
 impl MockReferralCaller {
     pub fn call_distribute(
@@ -147,7 +157,8 @@ impl MockReferralCaller {
         }
     }
 }
-
+// ===========================================================================
+// Test: Referral contract can call distribute_reward
 #[test]
 fn test_distribute_reward_pays_recipient_and_decrements_rewards() {
     let env = Env::default();
@@ -170,7 +181,8 @@ fn test_distribute_reward_pays_recipient_and_decrements_rewards() {
     );
     assert_eq!(client.category_balance(&rewards), 600);
 }
-
+// ===========================================================================
+// Test: Referral contract can call distribute_reward
 #[test]
 fn test_distribute_reward_rejects_underfunded_rewards_pool() {
     let env = Env::default();
