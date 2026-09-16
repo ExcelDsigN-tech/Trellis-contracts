@@ -1,7 +1,7 @@
 //! Upgrade simulation and testing utilities
 //!
 //! Provides test harnesses, mocks, and simulation tools for exercising
-//! upgrade flows and state migrations across the Alian Structure protocol.
+//! upgrade flows and state migrations across the Trellis protocol.
 
 use soroban_sdk::{
     contract, contractimpl, symbol_short, testutils::Address as _, Address, BytesN, Env, Symbol,

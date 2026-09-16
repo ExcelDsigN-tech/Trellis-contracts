@@ -1,6 +1,6 @@
 # Upgradeability Module
 
-> System-wide upgrade registry and coordinator for the Alian Structure
+> System-wide upgrade registry and coordinator for the Trellis
 > Soroban smart-contract suite.
 
 ---

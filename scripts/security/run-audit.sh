@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Security Audit runner for the alian_structure workspace.
+# Security Audit runner for the trellis workspace.
 #
 # Usage:
 #   ./scripts/security/run-audit.sh [--report PATH] [--allowlist PATH] [--skip-wasm]

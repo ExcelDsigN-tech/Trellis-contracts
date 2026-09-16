@@ -2,7 +2,7 @@
 
 //! # Access Control Contract
 //!
-//! A standalone Role-Based Access Control (RBAC) module for the Alian Structure
+//! A standalone Role-Based Access Control (RBAC) module for the Trellis
 //! Soroban smart-contract suite.  Provides:
 //!
 //! * Dynamic role creation, assignment, and revocation.

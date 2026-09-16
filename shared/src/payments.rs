@@ -1,6 +1,6 @@
 //! # Payments — Token & Native-Transfer Utilities
 //!
-//! Standardised payment primitives for the Alian Structure Soroban contract
+//! Standardised payment primitives for the Trellis Soroban contract
 //! suite.  Provides safe token transfer wrappers, pull-based escrow, batch
 //! payouts, and fee-handling hooks — all with consistent event emissions and
 //! documented error codes.

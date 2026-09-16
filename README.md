@@ -1,12 +1,23 @@
-# ⭐ Alian Structure Smart Contracts
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="brand/png/trellis-lockup-dark-320.png">
+    <img src="brand/png/trellis-lockup-320.png" alt="Trellis" width="331">
+  </picture>
+</p>
 
-> **Open-source Soroban smart contracts powering transparent, secure and verifiable humanitarian aid distribution on the Stellar blockchain.**
+<h1 align="center">Trellis Smart Contracts</h1>
 
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Rust](https://img.shields.io/badge/Rust-1.80+-orange.svg)
-![Soroban](https://img.shields.io/badge/Soroban-Latest-blue.svg)
-![Stellar](https://img.shields.io/badge/Stellar-Blockchain-blue.svg)
-![Status](https://img.shields.io/badge/status-active%20development-brightgreen.svg)
+<p align="center">
+  <strong>Open-source Soroban smart contracts powering transparent, secure and verifiable<br>humanitarian aid distribution on the Stellar blockchain.</strong>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/license-MIT-1C6B55?style=flat-square" alt="License">
+  <img src="https://img.shields.io/badge/Rust-1.80%2B-14201C?style=flat-square" alt="Rust">
+  <img src="https://img.shields.io/badge/Soroban-latest-1C6B55?style=flat-square" alt="Soroban">
+  <img src="https://img.shields.io/badge/Stellar-blockchain-14201C?style=flat-square" alt="Stellar">
+  <img src="https://img.shields.io/badge/status-active%20development-E39A3C?style=flat-square" alt="Status">
+</p>
 
 ---
 
@@ -29,13 +40,14 @@
 - Events
 - Storage Layout
 - Contribution Guide
+- Brand
 - License
 
 ---
 
 # Overview
 
-The **Alian Structure Contracts** repository contains every on-chain component responsible for securely executing humanitarian aid transactions on the Stellar blockchain using **Soroban**.
+The **Trellis Contracts** repository contains every on-chain component responsible for securely executing humanitarian aid transactions on the Stellar blockchain using **Soroban**.
 
 These contracts serve as the trust layer of the platform.
 
@@ -56,7 +68,7 @@ The contracts are designed to be:
 
 Traditional donation systems rely heavily on centralized infrastructure.
 
-Alian Structure replaces this model by executing critical operations directly on-chain.
+Trellis replaces this model by executing critical operations directly on-chain.
 
 The contracts provide:
 
@@ -316,9 +328,9 @@ cargo install --locked soroban-cli
 Clone repository
 
 ```
-git clone https://github.com/SourceXXL/alian_structure-contracts.git
+git clone https://github.com/TRELLIS-STELLAR/Trellis.git
 
-cd alian_structure-contracts
+cd Trellis
 ```
 
 ---
@@ -519,6 +531,19 @@ Every contract contribution must include:
 - Security considerations
 
 - Gas optimization review
+
+---
+
+# Brand
+
+The Trellis mark, wordmark and palette live in [`brand/`](brand/) — SVG, PNG and ICO
+variants for light and dark backgrounds, plus clear-space and minimum-size rules.
+
+| Vine | Amber | Ink | Paper |
+| --- | --- | --- | --- |
+| `#1C6B55` | `#E39A3C` | `#14201C` | `#F7F5F0` |
+
+Vine is the structure, amber is the accent — one amber element per composition.
 
 ---
 

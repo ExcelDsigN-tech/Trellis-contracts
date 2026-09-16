@@ -1,6 +1,6 @@
 # Security Audit Module
 
-Automated static analysis, reporting and CI gating for the alian_structure
+Automated static analysis, reporting and CI gating for the trellis
 contract workspace. This module does not change any contract code; it adds the
 tooling required to run repeatable security checks over it.
 

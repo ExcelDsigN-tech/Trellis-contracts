@@ -1,4 +1,4 @@
-//! Shared storage helpers for Alian Structure Soroban contracts.
+//! Shared storage helpers for Trellis Soroban contracts.
 //!
 //! ## Storage-type guidance
 //!

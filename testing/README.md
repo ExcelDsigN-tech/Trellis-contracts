@@ -1,6 +1,6 @@
 # Testing & Simulation Module
 
-A comprehensive testing framework for all contracts in the alian_structure-contracts repository. This module provides mocks, helpers, simulation tools, and fuzzing harnesses to thoroughly test all protocol functionality.
+A comprehensive testing framework for all contracts in the trellis-contracts repository. This module provides mocks, helpers, simulation tools, and fuzzing harnesses to thoroughly test all protocol functionality.
 
 ## Overview
 
