@@ -42,7 +42,8 @@ pub struct RegistryEntry {
     pub contract: ContractRegistration,
     pub metadata: MetadataEntry,
 }
-
+// ===========================================================================
+// Contract Implementation
 #[contract]
 pub struct RegistryContract;
 
