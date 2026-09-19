@@ -1,0 +1,217 @@
+{
+  "repo": "TRELLIS-STELLAR/Trellis",
+  "generated_for": "Wave Program",
+  "issues": [
+    {
+      "number": 1,
+      "stage": 1,
+      "title": "Add the MIT LICENSE file the README already promises",
+      "labels": [
+        "good first issue",
+        "documentation",
+        "legal"
+      ],
+      "body": "The README carries an MIT licence badge and its License section says\n\"Licensed under the MIT License. See LICENSE for details.\" — but there is no\n`LICENSE` file in the repository. `ls` at the root confirms it: the file has\nnever existed.\n\n## Why this matters\n\nWithout a licence file the code is, legally, all-rights-reserved. Nobody can\nsafely fork, audit or build on it, GitHub shows no licence in the sidebar, and\nmost grant and accelerator programmes treat a missing licence as disqualifying.\nFor a project whose whole pitch is verifiable public-good infrastructure, this\nis the single cheapest credibility fix available.\n\n## Tasks\n\n- [ ] Add a `LICENSE` file at the repository root with the standard MIT text\n- [ ] Set the copyright line to `Copyright (c) 2026 Trellis`\n- [ ] Confirm GitHub's sidebar shows \"MIT License\" after merge\n- [ ] Check the sibling repositories use the same licence, and open an issue there if they disagree\n\n## Files to look at\n\n- `LICENSE (new)`\n- `README.md`\n\n## Acceptance criteria\n\n- A `LICENSE` file exists at the root containing the unmodified MIT licence text\n- GitHub's repository sidebar displays the licence\n- The README's License section and badge still match the file\n\n## Notes\n\nNote that `Trellis-API` is Apache-2.0 while the README here claims MIT. Flag it\nin the thread if the licences should be aligned — that is a maintainer decision,\nnot part of this issue.\n\n---\n\n**Skills:** Markdown  \n**Estimated effort:** 15 minutes"
+    },
+    {
+      "number": 2,
+      "stage": 1,
+      "title": "CI never runs the test suite — add a `cargo test` job",
+      "labels": [
+        "bug",
+        "ci",
+        "good first issue"
+      ],
+      "body": "`.github/workflows/ci.yml` defines exactly three jobs: `build`\n(`cargo build --release`), `clippy` (`cargo clippy --workspace -- -D warnings`)\nand `format` (`cargo fmt --all -- --check`).\n\nThere is no `cargo test` anywhere in the workflow. The repository has **324\ntests** across the contract crates and `shared/` — 41 in `upgradeability`, 35 in\n`governance-contract`, 32 in `access-control`, 100 in `shared` — and not one of\nthem runs on a pull request.\n\n## Why this matters\n\nEvery test in this repository is currently decorative. A PR can delete an\nassertion, break `claim_aid`, or regress the treasury accounting and CI will\nstill go green as long as it compiles and is formatted. On contracts that move\ndonor money, that is the most serious process gap in the repo.\n\n## Tasks\n\n- [ ] Add a `test` job to `.github/workflows/ci.yml` running `cargo test --workspace`\n- [ ] Reuse the existing `dtolnay/rust-toolchain@stable` and `actions/cache@v4` steps for consistency\n- [ ] Confirm the job fails when a test is deliberately broken, then revert that change\n- [ ] Make the job required for merge in the branch protection settings (maintainer step — note it in the PR)\n\n## Files to look at\n\n- `.github/workflows/ci.yml`\n\n## Acceptance criteria\n\n- `cargo test --workspace` runs on every push and pull request to `main` and `develop`\n- A deliberately failing test causes a red check (demonstrate in the PR description)\n- The job uses the same cache key strategy as the existing jobs so it does not slow CI down\n\n---\n\n**Skills:** GitHub Actions, Rust  \n**Estimated effort:** 1 hour"
+    },
+    {
+      "number": 3,
+      "stage": 1,
+      "title": "Add CONTRIBUTING.md",
+      "labels": [
+        "good first issue",
+        "documentation"
+      ],
+      "body": "`Trellis-frontend` and `Trellis-API` both have a `CONTRIBUTING.md` (171 and 124\nlines respectively). This repository has none — no setup instructions beyond the\nREADME, no branch naming convention, no PR expectations, no explanation of how\nto run the test suite or what reviewers look for.\n\n## Why this matters\n\nThis is the repository most likely to intimidate a newcomer — Rust, Soroban, and\nmoney-handling logic. A contributor who cannot work out how to build and test\nlocally will not open a PR at all. It is also the first thing Wave reviewers\ncheck when judging whether a project is ready to receive contributors.\n\n## Tasks\n\n- [ ] Document local setup: Rust toolchain (see `rust-toolchain.toml`), the `wasm32v1-none` target, and the Soroban CLI\n- [ ] Document how to build (`cargo build --release`) and test (`cargo test --workspace`)\n- [ ] Document how to run a single crate's tests, e.g. `cargo test -p aid-contract`\n- [ ] Describe the branch naming and commit message conventions already in use in the git history\n- [ ] Explain the PR process: what CI must pass, that new contract logic needs tests, and who reviews\n- [ ] Point at `testing/README.md`, which already documents the mocks and fuzzing harnesses\n- [ ] Link the new file from the README\n\n## Files to look at\n\n- `CONTRIBUTING.md (new)`\n- `README.md`\n- `testing/README.md`\n- `rust-toolchain.toml`\n\n## Acceptance criteria\n\n- A new contributor can go from `git clone` to a passing `cargo test --workspace` using only CONTRIBUTING.md\n- The file is linked from the README\n- Conventions described match what the git history actually shows\n\n---\n\n**Skills:** Markdown  \n**Estimated effort:** 2 hours"
+    },
+    {
+      "number": 4,
+      "stage": 1,
+      "title": "Add a CODE_OF_CONDUCT.md",
+      "labels": [
+        "good first issue",
+        "documentation",
+        "community"
+      ],
+      "body": "The other two Trellis repositories each ship a Code of Conduct (76 and 78\nlines, both Contributor Covenant). This one does not.\n\n## Why this matters\n\nAn open-source project taking outside contributors needs a stated standard of\nbehaviour and a reporting route, both so participants know what to expect and so\nmaintainers have something to point at. GitHub also surfaces its presence in the\ncommunity profile, which several funding programmes check.\n\n## Tasks\n\n- [ ] Adopt Contributor Covenant v2.1, matching the version used in the sibling repositories\n- [ ] Fill in a real reporting contact — do not leave the template placeholder\n- [ ] Link it from the README and from CONTRIBUTING.md\n\n## Files to look at\n\n- `CODE_OF_CONDUCT.md (new)`\n- `README.md`\n- `CONTRIBUTING.md`\n\n## Acceptance criteria\n\n- The file is present and contains a working reporting contact address\n- GitHub's community profile shows the Code of Conduct as satisfied\n- The version matches `Trellis-API` and `Trellis-frontend` so the three repos are consistent\n\n## Notes\n\nDepends on the CONTRIBUTING.md issue only for the cross-link; it can be merged\nindependently and linked later.\n\n---\n\n**Skills:** Markdown  \n**Estimated effort:** 30 minutes"
+    },
+    {
+      "number": 5,
+      "stage": 1,
+      "title": "Add SECURITY.md with a vulnerability disclosure policy",
+      "labels": [
+        "good first issue",
+        "documentation",
+        "security"
+      ],
+      "body": "There is no `SECURITY.md` in the repository, so GitHub shows no \"Report a\nvulnerability\" route. The repo does have a `security/` directory with an audit\nallowlist and a runner script, but nothing that tells an outside researcher what\nto do when they find a bug.\n\n## Why this matters\n\nThese contracts hold and move humanitarian aid funds on a public ledger. A\nresearcher who finds a flaw in `treasury-contract` or `payments-contract` today\nhas no private channel and will either post it publicly or say nothing. Both\noutcomes are bad. A disclosure policy is the minimum responsible posture for a\nrepository of this kind.\n\n## Tasks\n\n- [ ] Write `SECURITY.md` covering: which versions are supported, how to report privately, and the response time you commit to\n- [ ] Enable GitHub private vulnerability reporting in repository settings and reference it\n- [ ] State explicitly that the contracts are unaudited and testnet-only, if that is still true\n- [ ] Cross-reference `security/README.md` and `SECURITY_BATCH.md`\n\n## Files to look at\n\n- `SECURITY.md (new)`\n- `security/README.md`\n- `SECURITY_BATCH.md`\n\n## Acceptance criteria\n\n- GitHub's Security tab shows the policy\n- The policy names a private reporting channel and a response-time commitment\n- The current audit status of the contracts is stated plainly\n\n---\n\n**Skills:** Markdown  \n**Estimated effort:** 1 hour"
+    },
+    {
+      "number": 6,
+      "stage": 1,
+      "title": "Add issue and pull request templates",
+      "labels": [
+        "good first issue",
+        "documentation",
+        "community"
+      ],
+      "body": "`.github/` contains only `workflows/ci.yml`. There are no issue templates and no\npull request template, unlike the other two repositories which both have\n`bug_report.md`, `feature_request.md` and a PR template.\n\n## Why this matters\n\nTemplates are what make incoming reports actionable. Without them, bug reports on\na contracts repo arrive without the crate name, the network, the contract ID or\nthe transaction hash — all of which a maintainer then has to ask for. They also\nset the tone that this repository expects and welcomes outside contributions.\n\n## Tasks\n\n- [ ] Add `.github/ISSUE_TEMPLATE/bug_report.md` with fields for affected crate, network (testnet/futurenet), contract ID, transaction hash, and reproduction steps\n- [ ] Add `.github/ISSUE_TEMPLATE/feature_request.md`\n- [ ] Add `.github/ISSUE_TEMPLATE/config.yml` pointing security reports at SECURITY.md rather than the public tracker\n- [ ] Add `.github/PULL_REQUEST_TEMPLATE.md` with a checklist: tests added, `cargo fmt` clean, clippy clean, docs updated\n- [ ] Use the sibling repositories' templates as a starting point so the three feel like one project\n\n## Files to look at\n\n- `.github/ISSUE_TEMPLATE/ (new)`\n- `.github/PULL_REQUEST_TEMPLATE.md (new)`\n\n## Acceptance criteria\n\n- Opening a new issue offers a choice of templates\n- The security link in `config.yml` routes reporters away from the public tracker\n- The PR template checklist matches what CI actually enforces\n\n---\n\n**Skills:** Markdown, YAML  \n**Estimated effort:** 1 hour"
+    },
+    {
+      "number": 7,
+      "stage": 1,
+      "title": "README links to none of its own documentation — add an index",
+      "labels": [
+        "good first issue",
+        "documentation"
+      ],
+      "body": "The repository contains roughly 1,700 lines of documentation beyond the README:\n`UPGRADEABILITY.md` (364 lines), `SECURITY_BATCH.md` (241), `GAS_OPTIMIZATION.md`\n(233), `testing/README.md` (162), `shared/README.md` (107) and\n`security/README.md` (65).\n\nThe README links to **none** of them. For comparison, the frontend README has 10\ninternal documentation links and the API README has 7.\n\n## Why this matters\n\nThis documentation is genuinely good and effectively invisible. A contributor\nlooking for the upgrade model, the gas strategy or the testing harness has to\nguess that those files exist and browse the file tree to find them. That is a\npure discoverability loss for work already done.\n\n## Tasks\n\n- [ ] Add a `## Documentation` section to the README with a one-line description of each document and a link\n- [ ] Add per-crate links where a crate has its own README (`shared/`, `testing/`, `security/`)\n- [ ] Add the index to the README's table of contents\n- [ ] Check every link resolves on GitHub after merge (relative paths, correct case)\n\n## Files to look at\n\n- `README.md`\n- `UPGRADEABILITY.md`\n- `GAS_OPTIMIZATION.md`\n- `SECURITY_BATCH.md`\n- `testing/README.md`\n- `shared/README.md`\n- `security/README.md`\n\n## Acceptance criteria\n\n- Every markdown file in the repository is reachable from the README in one click\n- Each link has a one-line description of what the reader will find\n- No broken relative links (verify on the rendered GitHub page, not locally)\n\n---\n\n**Skills:** Markdown  \n**Estimated effort:** 45 minutes"
+    },
+    {
+      "number": 8,
+      "stage": 2,
+      "title": "The README's \"Contract Interfaces\" section is empty — write the reference",
+      "labels": [
+        "documentation",
+        "help wanted"
+      ],
+      "body": "The README's table of contents lists \"Contract Interfaces\" as a section. The\nsection heading exists. It contains **zero lines of content**.\n\nBy contrast, \"Events\" has 16 lines and \"Storage Layout\" has 23, so the\nsurrounding reference material was started and this section was skipped. The\nrepository exposes a large public surface: `aid-contract` alone has 27 public\nfunctions (`create_aid`, `claim_aid`, `refund_aid`, `update_config`,\n`list_aids_by_donor`, and so on), `nft-marketplace` has 34, and there are 11\ncrates in total.\n\n## Why this matters\n\nThis is the single most important piece of documentation a smart contract\nrepository can have. Anyone integrating — the API team, a wallet, an auditor, a\npartner NGO — needs to know each entry point's parameters, authorisation\nrequirements, failure modes and emitted events. Right now that information\nexists only in the Rust source.\n\n## Tasks\n\n- [ ] Agree a per-function format in the issue thread first: signature, description, auth required, parameters, returns, errors, events emitted\n- [ ] Document `aid-contract` first — it is the core module and the best template for the rest\n- [ ] Work through the remaining crates: treasury, referral, governance, registry, payments, access-control, upgradeability, nft-marketplace, oracle, rebalancer\n- [ ] Cross-reference the existing Events and Storage Layout sections rather than duplicating them\n- [ ] Consider generating the skeleton from rustdoc rather than writing it by hand\n\n## Files to look at\n\n- `README.md`\n- `contracts/*/src/lib.rs`\n- `contracts/aid-contract/src/api.rs`\n\n## Acceptance criteria\n\n- Every public entry point on every contract is documented with parameters, return type, errors and events\n- The documented signatures match the code (check against `cargo doc`)\n- A reader can integrate against `aid-contract` without opening the Rust source\n\n## Notes\n\nThis is large enough to split into eleven separate issues, one per crate, if you\nwant it to absorb more contributors. Start with `aid-contract` as the reference\nimplementation and let others follow the pattern.\n\n---\n\n**Skills:** Rust, Soroban, technical writing  \n**Estimated effort:** 1–2 days (or split per crate)"
+    },
+    {
+      "number": 9,
+      "stage": 2,
+      "title": "oracle-contract is a 23-line stub — implement price feed submission",
+      "labels": [
+        "enhancement",
+        "help wanted",
+        "core"
+      ],
+      "body": "`contracts/oracle-contract/src/lib.rs` is 23 lines long and contains exactly one\nfunction:\n\n```rust\npub fn initialize(env: Env, admin: Address) {\n    shared::auth::set_admin(&env, &admin);\n    emit_module_initialized(&env, symbol_short!(\"oracle\"), 1, &admin, env.ledger().timestamp());\n}\n```\n\nThat is the entire contract. It has no submission, no storage, no aggregation, no\nreads. Meanwhile the architecture diagram in the README lists \"Oracle Contract\"\nas one of six core modules, and `Trellis-API` has a whole\n`src/blockchain/oracle/` subsystem with payload signing built to submit to it.\n\n## Why this matters\n\nThe off-chain side is built and has nothing to talk to. Aid distribution depends\non verified external data — identity verification references, exchange rates,\ndelivery confirmations — and the oracle is where that data is supposed to become\nverifiable on-chain. Until it exists, that link in the trust chain is missing.\n\n## Tasks\n\n- [ ] Agree the data model in the issue thread before coding: what a submission contains, who may submit, how disputes are handled\n- [ ] Define storage: submitter registry, per-feed latest value, submission history with timestamps\n- [ ] Implement `add_submitter` / `remove_submitter` guarded by the existing `shared::auth` admin checks\n- [ ] Implement `submit` with replay protection and a staleness window\n- [ ] Implement `get_latest` and `get_at` read paths\n- [ ] Emit events for every state change, following the pattern in `shared/src/events.rs`\n- [ ] Decide whether multi-submitter aggregation (median/quorum) lands here or in a follow-up\n- [ ] Align the payload shape with `Trellis-API`'s `payload-signing.service.ts` so the two actually interoperate\n\n## Files to look at\n\n- `contracts/oracle-contract/src/lib.rs`\n- `shared/src/auth.rs`\n- `shared/src/events.rs`\n- `shared/src/storage.rs`\n- `contracts/aid-contract/src/ (as a structural reference)`\n\n## Acceptance criteria\n\n- An authorised submitter can write a value and any caller can read it back\n- An unauthorised submitter is rejected\n- Replayed and stale submissions are rejected\n- Every state change emits an event\n- The on-chain payload format matches what the API's signing service produces\n\n## Notes\n\nPair this with the oracle test-suite issue — they should land together. Look at\n`aid-contract` for the house structure: separate `api.rs`, `errors.rs`,\n`events.rs`, `storage.rs` and `types.rs` modules rather than one large `lib.rs`.\n\n---\n\n**Skills:** Rust, Soroban, oracle design  \n**Estimated effort:** 1–2 weeks"
+    },
+    {
+      "number": 10,
+      "stage": 2,
+      "title": "oracle-contract has zero tests",
+      "labels": [
+        "test",
+        "help wanted"
+      ],
+      "body": "Test counts across the workspace:\n\n| crate | tests |\n| --- | --- |\n| `shared` | 100 |\n| `upgradeability` | 41 |\n| `governance-contract` | 35 |\n| `access-control` | 32 |\n| `nft-marketplace` | 31 |\n| `payments-contract` | 19 |\n| `aid-contract` | 16 |\n| `referral-contract` | 14 |\n| `treasury-contract` | 14 |\n| `registry-contract` | 11 |\n| `rebalancer-contract` | 1 |\n| **`oracle-contract`** | **0** |\n\n`oracle-contract` is the only crate in the repository with no test file at all.\n\n## Why this matters\n\nOracle contracts are a favourite attack surface: stale data, unauthorised\nsubmitters, replayed payloads and manipulated aggregation are all standard\nexploits. Shipping one without tests on a contract that gates aid disbursement\nwould be negligent.\n\n## Tasks\n\n- [ ] Add `contracts/oracle-contract/src/tests.rs` following the structure used in `aid-contract`\n- [ ] Cover: initialisation, double initialisation rejected, admin-only mutations\n- [ ] Cover: authorised submit succeeds, unauthorised submit panics\n- [ ] Cover: reading a value that was never written\n- [ ] Cover: stale data past the freshness window\n- [ ] Cover: replayed submission rejected\n- [ ] Use the mocks and helpers already provided by the `testing/` crate\n\n## Files to look at\n\n- `contracts/oracle-contract/src/tests.rs (new)`\n- `testing/README.md`\n- `contracts/aid-contract/src/tests.rs (as a reference)`\n\n## Acceptance criteria\n\n- Every public function has at least one success and one failure test\n- `cargo test -p oracle-contract` passes\n- Coverage for the crate is comparable to `aid-contract`'s\n\n## Notes\n\nBlocked on the oracle implementation issue — the interface must exist first.\n\n---\n\n**Skills:** Rust, Soroban test harness  \n**Estimated effort:** 3–5 days"
+    },
+    {
+      "number": 11,
+      "stage": 2,
+      "title": "rebalancer: replace the placeholder slippage predictor",
+      "labels": [
+        "enhancement",
+        "help wanted"
+      ],
+      "body": "`contracts/rebalancer-contract/src/slippage_predictor.rs` is ten lines and\nreturns a constant:\n\n```rust\npub fn predict_slippage(_asset_pair: (Symbol, Symbol), _amount: u128, env: &Env) -> U256 {\n    // Placeholder slippage prediction\n    U256::from_u32(env, 1)\n}\n```\n\nBoth real inputs are discarded — note the leading underscores on `_asset_pair`\nand `_amount`. Slippage is reported as 1 regardless of the pair being traded or\nthe size of the trade.\n\n## Why this matters\n\nA rebalancer that assumes constant slippage will systematically misprice large\ntrades and thin pairs. Any caller relying on this to decide whether a rebalance\nis worth executing is being given a number with no relationship to reality — and\nit looks like a real calculation, which is worse than an obvious stub.\n\n## Tasks\n\n- [ ] Agree the model in the issue thread: constant-product AMM, depth-based, or oracle-fed\n- [ ] Define where liquidity depth comes from — the oracle contract is the obvious source\n- [ ] Implement the calculation using the actual asset pair and trade amount\n- [ ] Use `shared/src/math.rs` for fixed-point arithmetic rather than rolling new helpers\n- [ ] Handle the edge cases: zero amount, unknown pair, insufficient liquidity\n- [ ] Add unit tests covering small, large and pathological trades\n\n## Files to look at\n\n- `contracts/rebalancer-contract/src/slippage_predictor.rs`\n- `contracts/rebalancer-contract/src/lib.rs`\n- `shared/src/math.rs`\n\n## Acceptance criteria\n\n- Predicted slippage varies with both trade size and asset pair\n- Large trades against thin liquidity predict materially higher slippage than small ones\n- Overflow and division-by-zero are impossible for any input\n- The model used is documented in the module's rustdoc\n\n---\n\n**Skills:** Rust, Soroban, DeFi mechanics  \n**Estimated effort:** 1 week"
+    },
+    {
+      "number": 12,
+      "stage": 2,
+      "title": "rebalancer: `execute_strategy` ignores the strategy and always returns true",
+      "labels": [
+        "bug",
+        "enhancement",
+        "help wanted"
+      ],
+      "body": "`contracts/rebalancer-contract/src/strategy_executor.rs`:\n\n```rust\npub fn execute_strategy(env: &Env, _strategy: &ExecutionStrategy, trades: &Vec<Trade>) -> bool {\n    for trade in trades.iter() {\n        // Placeholder for trade execution\n        log_trade(env, &trade, 0, 0);\n    }\n    true\n}\n```\n\nThe `_strategy` parameter is discarded, so every `ExecutionStrategy` variant\nbehaves identically. No trade is executed — the loop only emits a log. The\nfunction returns `true` unconditionally, so callers cannot detect failure.\n\n`log_trade` in `logging.rs` has the same problem: it takes `_trade`,\n`_actual_price` and `_fee` and discards all three, emitting a generic event with\nno trade detail. The hardcoded `0, 0` at the call site is the price and fee.\n\n## Why this matters\n\nThis is worse than unimplemented — it reports success. A caller sees `true`,\nsees events on-chain, and reasonably concludes the rebalance happened. Nothing\nmoved. If anything integrates against this before it is finished, the failure\nwill be silent and the on-chain record will be misleading.\n\n## Tasks\n\n- [ ] Implement the distinct `ExecutionStrategy` variants defined in `lib.rs`\n- [ ] Perform actual transfers via `shared/src/payments.rs` rather than only logging\n- [ ] Return a result type that can express partial and total failure instead of a bare `bool`\n- [ ] Fix `log_trade` to record the real trade, execution price and fee\n- [ ] Propagate the real price and fee at the call site instead of `0, 0`\n- [ ] Add tests per strategy variant, including a failing-trade path\n\n## Files to look at\n\n- `contracts/rebalancer-contract/src/strategy_executor.rs`\n- `contracts/rebalancer-contract/src/logging.rs`\n- `contracts/rebalancer-contract/src/lib.rs`\n- `shared/src/payments.rs`\n\n## Acceptance criteria\n\n- Each strategy variant produces observably different behaviour\n- A failed trade is reported to the caller rather than swallowed\n- Emitted events carry the trade, price and fee\n- Tests cover every variant plus the failure path\n\n---\n\n**Skills:** Rust, Soroban  \n**Estimated effort:** 1 week"
+    },
+    {
+      "number": 13,
+      "stage": 2,
+      "title": "rebalancer-contract has one test for 153 lines and five modules",
+      "labels": [
+        "test",
+        "help wanted"
+      ],
+      "body": "`rebalancer-contract` has a single `#[test]` across five source modules —\n`lib.rs`, `fee_calculator.rs`, `slippage_predictor.rs`, `strategy_executor.rs`\nand `logging.rs`. Every other contract crate in the workspace has between 11 and\n41 tests.\n\n## Why this matters\n\nThe rebalancer handles multi-asset trades and fee calculation. `fee_calculator.rs`\nin particular does arithmetic on `u128` values derived from user input, which is\nexactly the kind of code that needs overflow and rounding tests. One test does\nnot cover five modules.\n\n## Tasks\n\n- [ ] Add table-driven tests for `calculate_total_fees` covering zero trades, one trade, many trades, and overflow boundaries\n- [ ] Add tests for `predict_slippage` once it has a real implementation\n- [ ] Add tests for `execute_strategy` covering each variant\n- [ ] Add a `rebalance` end-to-end test at the contract level\n- [ ] Use the `testing/` crate's helpers rather than hand-rolling fixtures\n\n## Files to look at\n\n- `contracts/rebalancer-contract/src/tests.rs`\n- `contracts/rebalancer-contract/src/fee_calculator.rs`\n- `testing/README.md`\n\n## Acceptance criteria\n\n- Every module in the crate has test coverage\n- Fee arithmetic is tested at overflow boundaries\n- `cargo test -p rebalancer-contract` passes\n\n## Notes\n\nThe slippage and strategy tests depend on those two implementation issues landing first.\n\n---\n\n**Skills:** Rust, Soroban test harness  \n**Estimated effort:** 3–5 days"
+    },
+    {
+      "number": 14,
+      "stage": 2,
+      "title": "Add code coverage reporting to CI",
+      "labels": [
+        "ci",
+        "test",
+        "help wanted"
+      ],
+      "body": "There is no coverage measurement anywhere in the repository. `cargo tarpaulin`,\n`cargo llvm-cov` and any coverage upload step are all absent from\n`.github/workflows/ci.yml`.\n\nTest counts per crate vary from 0 to 41, but counts are a poor proxy — nobody\ncurrently knows which code paths in `aid-contract` or `treasury-contract` are\nactually exercised.\n\n## Why this matters\n\nCoverage is how you find the untested branch in the refund path before an\nauditor does. It also gives the programme a visible, objective signal of\nimprovement over the course of a wave, which is much more compelling than\n\"we added some tests\".\n\n## Tasks\n\n- [ ] Add a coverage job using `cargo llvm-cov` (better `no_std` support than tarpaulin for Soroban crates)\n- [ ] Upload the report to Codecov or as a workflow artifact\n- [ ] Add a coverage badge to the README\n- [ ] Record the current baseline per crate in the issue thread\n- [ ] Set a floor that fails CI on regression — agree the number once the baseline is known\n\n## Files to look at\n\n- `.github/workflows/ci.yml`\n- `README.md`\n\n## Acceptance criteria\n\n- Coverage is computed and reported on every pull request\n- The current baseline is documented\n- CI fails if coverage drops below the agreed floor\n\n## Notes\n\nDepends on the `cargo test` CI issue — there is nothing to measure until tests run.\n\n---\n\n**Skills:** GitHub Actions, Rust tooling  \n**Estimated effort:** 1 day"
+    },
+    {
+      "number": 15,
+      "stage": 2,
+      "title": "Add dependency vulnerability scanning to CI",
+      "labels": [
+        "ci",
+        "security",
+        "help wanted"
+      ],
+      "body": "`scripts/security/run-audit.sh` exists and `security/audit-allowlist.toml` is\nchecked in, so the intent was clearly there — but nothing in\n`.github/workflows/ci.yml` invokes either. `cargo audit` never runs\nautomatically.\n\n## Why this matters\n\nSoroban contracts pull in a dependency tree that changes underneath you. A\nknown-vulnerable transitive crate that lands in a lockfile update will go\nunnoticed indefinitely, and for on-chain code the cost of shipping one is\npaid by users, not by a redeploy.\n\n## Tasks\n\n- [ ] Add an `audit` job to CI invoking the existing `scripts/security/run-audit.sh`\n- [ ] Wire in `security/audit-allowlist.toml` so accepted advisories do not re-fail the build\n- [ ] Decide whether the job blocks merges or only warns — document the choice in the workflow\n- [ ] Add a scheduled weekly run so advisories published after merge still surface\n- [ ] Document the triage process in SECURITY.md\n\n## Files to look at\n\n- `.github/workflows/ci.yml`\n- `scripts/security/run-audit.sh`\n- `security/audit-allowlist.toml`\n- `security/README.md`\n\n## Acceptance criteria\n\n- `cargo audit` runs on every PR and on a weekly schedule\n- The allowlist suppresses accepted advisories without suppressing new ones\n- A newly published advisory produces a visible failure\n\n---\n\n**Skills:** GitHub Actions, Rust tooling  \n**Estimated effort:** half a day"
+    },
+    {
+      "number": 16,
+      "stage": 3,
+      "title": "`shared` has both `event.rs` and `events.rs` — reconcile them",
+      "labels": [
+        "refactor",
+        "needs discussion"
+      ],
+      "body": "`shared/src/` contains both `event.rs` and `events.rs`. Two modules one letter\napart is almost always either duplication or an abandoned migration, and in\neither case it is a trap: a contributor adding an event has no way to know which\none is correct.\n\nThe same directory also has `auth.rs` alongside `test_auth.rs`, and `storage.rs`\nalongside `test_storage.rs`, which suggests tests live beside implementations\nhere — worth confirming that is deliberate while you are in there.\n\n## Why this matters\n\n`shared` is 4,656 lines used by all eleven contract crates. Ambiguity at this\nlayer propagates everywhere, and event schemas in particular are a public\ninterface: indexers and the API depend on their exact shape.\n\n## Tasks\n\n- [ ] Establish which module is canonical and what the other was for — check the git history\n- [ ] Determine which crates import which\n- [ ] Agree the target structure in the issue thread before moving code\n- [ ] Consolidate, keeping the emitted event topics and payloads byte-identical\n- [ ] Update all importing crates\n- [ ] Confirm no emitted event's topic or payload changed — this is an on-chain interface\n\n## Files to look at\n\n- `shared/src/event.rs`\n- `shared/src/events.rs`\n- `shared/src/lib.rs`\n- `contracts/*/src/`\n\n## Acceptance criteria\n\n- One canonical events module\n- Every crate compiles and all tests pass\n- No change to any emitted event's topic or payload shape (demonstrate in the PR)\n\n## Notes\n\nChanging an event's shape is a breaking change for anything indexing the chain.\nIf consolidation forces a change, that needs its own discussion and a migration\nnote — do not fold it in silently.\n\n---\n\n**Skills:** Rust  \n**Estimated effort:** 2–3 days"
+    },
+    {
+      "number": 17,
+      "stage": 3,
+      "title": "Add a WASM size budget check to CI",
+      "labels": [
+        "ci",
+        "performance",
+        "needs discussion"
+      ],
+      "body": "CI builds with `cargo build --release` but never measures the resulting WASM, and\nnever runs `soroban contract build` or `wasm-opt`. `GAS_OPTIMIZATION.md` (233\nlines) discusses optimisation strategy, but nothing enforces it.\n\n## Why this matters\n\nSoroban enforces contract size limits, and deployment cost scales with size. A\ndependency bump or an innocuous refactor can push a contract over the limit and\nthe first you learn of it is a failed deployment. A budget check turns that into\na failed PR instead.\n\n## Tasks\n\n- [ ] Add a CI step running `soroban contract build` for each contract crate\n- [ ] Record the optimised size of each `.wasm` artifact\n- [ ] Agree per-contract budgets in the issue thread — `nft-marketplace` at 2,532 lines will need more headroom than `oracle-contract`\n- [ ] Fail the build when a contract exceeds its budget\n- [ ] Comment the size delta on pull requests so reviewers see the cost of a change\n- [ ] Cross-reference the approach in GAS_OPTIMIZATION.md\n\n## Files to look at\n\n- `.github/workflows/ci.yml`\n- `GAS_OPTIMIZATION.md`\n- `contracts/*/Cargo.toml`\n\n## Acceptance criteria\n\n- Every contract's optimised WASM size is reported on each PR\n- Exceeding the agreed budget fails CI\n- The size delta versus the base branch is visible to reviewers\n\n---\n\n**Skills:** GitHub Actions, Soroban, WASM tooling  \n**Estimated effort:** 1–2 days"
+    },
+    {
+      "number": 18,
+      "stage": 3,
+      "title": "Publish rustdoc to GitHub Pages",
+      "labels": [
+        "documentation",
+        "ci",
+        "needs discussion"
+      ],
+      "body": "Nothing in the repository publishes API documentation. There is no `cargo doc`\nstep in CI, no Pages deployment, and no docs site for any of the three Trellis\nrepositories — all documentation lives as markdown inside the repos.\n\n## Why this matters\n\nA browsable, always-current API reference is the cheapest documentation a Rust\nproject can have, because rustdoc generates it from code that already exists. It\nalso gives the project a documentation URL to cite in applications and on the\nwebsite, which it currently lacks entirely.\n\n## Tasks\n\n- [ ] Add a workflow building `cargo doc --workspace --no-deps` and deploying to Pages\n- [ ] Decide whether to publish from `main` only or per release — discuss in the thread\n- [ ] Add a landing page that orients a reader across the eleven crates rather than dumping them alphabetically\n- [ ] Improve crate-level `//!` docs where they are thin, so the generated output is worth reading\n- [ ] Link the published site from the README and from the other two repositories\n\n## Files to look at\n\n- `.github/workflows/ (new)`\n- `contracts/*/src/lib.rs`\n- `README.md`\n\n## Acceptance criteria\n\n- Documentation is published at a stable URL and rebuilt on every merge to `main`\n- The landing page explains how the crates relate\n- The URL is linked from all three Trellis repositories\n\n## Notes\n\nConsider whether this should be one docs site across all three repos rather than\nthree separate ones. That is a bigger decision and belongs in the thread.\n\n---\n\n**Skills:** GitHub Actions, rustdoc  \n**Estimated effort:** 1–2 days"
+    },
+    {
+      "number": 19,
+      "stage": 3,
+      "title": "Add a cross-contract integration test for the full aid lifecycle",
+      "labels": [
+        "test",
+        "needs discussion"
+      ],
+      "body": "`tests/integration.rs` exists at the workspace root, and the `testing/` crate\nprovides mocks, helpers, simulation tools and fuzzing harnesses across 2,002\nlines. But the per-crate tests all exercise contracts in isolation.\n\nThe README's own description of the system is inherently cross-contract: a donor\ncreates aid, a recipient claims it, the treasury settles, the referral contract\npays a commission, and access-control gates each step.\n\n## Why this matters\n\nEvery bug that matters here lives between contracts, not inside them — a claim\nthat succeeds while the treasury transfer fails, a referral commission paid\ntwice, an expired aid that can still be claimed. Isolated unit tests cannot find\nthose, and they are exactly what an auditor will probe first.\n\n## Tasks\n\n- [ ] Agree the scenarios to cover in the issue thread before writing code\n- [ ] Build a fixture deploying all participating contracts and wiring them together\n- [ ] Cover the happy path: create → claim → settle → referral payout → treasury reconciliation\n- [ ] Cover expiry: aid expires unclaimed → refund → treasury balance restored\n- [ ] Cover authorisation: each step attempted by the wrong party\n- [ ] Cover partial failure: what happens when the treasury transfer fails mid-flow\n- [ ] Assert ledger balances at each step, not just that calls returned\n\n## Files to look at\n\n- `tests/integration.rs`\n- `testing/src/`\n- `contracts/aid-contract/`\n- `contracts/treasury-contract/`\n- `contracts/referral-contract/`\n\n## Acceptance criteria\n\n- The full donor-to-recipient flow is exercised end to end in a single test\n- Balances are asserted at every step\n- Failure paths leave no funds stranded\n- The tests run in CI within a reasonable time budget\n\n---\n\n**Skills:** Rust, Soroban, multi-contract testing  \n**Estimated effort:** 1–2 weeks"
+    },
+    {
+      "number": 20,
+      "stage": 3,
+      "title": "Add a CHANGELOG and document deployed testnet addresses",
+      "labels": [
+        "documentation",
+        "needs discussion"
+      ],
+      "body": "Two related gaps:\n\n1. There is no `CHANGELOG.md`. `Trellis-frontend` has one; this repository does\n   not, despite 155 commits and an upgradeable contract system where knowing\n   what changed between versions is a safety matter.\n2. No deployed contract addresses are recorded anywhere. Every contract ID in\n   the repository is a placeholder of the form `CDXXXXXXXX…`, and the deployment\n   scripts target testnet without recording what they produced.\n\n## Why this matters\n\nFor an upgradeable contract suite, \"which version is deployed at which address\"\nis operational safety information, not documentation polish. It is also the\nfirst thing a reviewer, integrator or auditor looks for — and its absence reads\nas \"never actually deployed\", whether or not that is true.\n\n## Tasks\n\n- [ ] Add `CHANGELOG.md` in Keep a Changelog format, seeded from the existing git history\n- [ ] Decide the versioning scheme — discuss in the thread, given contracts are upgradeable\n- [ ] Add a `## Deployments` section to the README: contract, network, address, version, deploy date\n- [ ] Record whatever is currently deployed on testnet; if nothing is, say so explicitly\n- [ ] Make recording the address a step in `scripts/deploy.sh` so it stays current\n- [ ] Cross-reference `UPGRADEABILITY.md`, which documents the upgrade registry\n\n## Files to look at\n\n- `CHANGELOG.md (new)`\n- `README.md`\n- `scripts/deploy.sh`\n- `UPGRADEABILITY.md`\n\n## Acceptance criteria\n\n- A changelog exists and covers at least the most recent release\n- Every deployed contract's network, address and version is recorded\n- Deploying updates the record rather than requiring a manual edit\n\n---\n\n**Skills:** Markdown, Soroban deployment  \n**Estimated effort:** 1–2 days"
+    }
+  ]
+}
