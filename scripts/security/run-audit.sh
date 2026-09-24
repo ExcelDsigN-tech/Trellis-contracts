@@ -149,7 +149,7 @@ CLIPPY_JSON="$WORKDIR/clippy.json"
 RUST_MIN_STACK=33554432 cargo clippy --workspace --lib --message-format=json -- "${CLIPPY_PRESET[@]}" > "$CLIPPY_JSON" 2> "$WORKDIR/clippy.human.log"
 grep -E "^warning" "$WORKDIR/clippy.human.log" | sort | uniq -c | sed 's/^/  /' || true
 append_report '```'
-grep -E "^warning|-->" "$WORKDIR/clippy.human.log" >> "$REPORT.tmp" 2>/dev/null || true
+[[ -n "$REPORT" ]] && grep -E "^warning|-->" "$WORKDIR/clippy.human.log" >> "$REPORT.tmp" 2>/dev/null || true
 [[ -n "$REPORT" ]] && printf '```\n' >> "$REPORT.tmp"
 
 "$PY" - "$CLIPPY_JSON" <<'PY' > "$WORKDIR/clippy.findings"
