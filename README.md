@@ -512,6 +512,10 @@ Off-chain indexers should match the stable two-part topic tuples and decode the 
 
 We welcome contributions from Rust and Soroban developers.
 
+Read [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide: local setup, build and test instructions, branch and commit conventions, and what reviewers look for.
+
+Please note that this project is released with a [Contributor Code of Conduct](CODE_OF_CONDUCT.md). By participating you agree to abide by its terms.
+
 Workflow
 
 1. Fork repository
