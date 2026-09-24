@@ -25,7 +25,7 @@ There are no tagged releases yet. Fixes land on `main` only.
 **Do not open a public issue, pull request or discussion for a security bug.**
 
 Report it through GitHub Private Vulnerability Reporting:
-**[Report a vulnerability](https://github.com/ExcelDsigN-tech/Trellis-contracts/security/advisories/new)**
+**[Report a vulnerability](https://github.com/TRELLIS-STELLAR/Trellis-contracts/security/advisories/new)**
 (Security tab → "Report a vulnerability").
 
 Please include:

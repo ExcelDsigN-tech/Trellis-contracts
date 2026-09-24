@@ -81,3 +81,97 @@ path = "contracts/rebalancer-contract"
 severity = "medium"
 rationale = "Fee basis-point multiplication on u128 trade amounts; host aborts on overflow."
 expires = "2026-12-31"
+
+
+[[exceptions]]
+
+id = "RUSTSEC-2026-0009"
+severity = "high"
+rationale = """
+time 0.3.36 stack exhaustion when parsing RFC 2822 input. Pulled in only via
+soroban-sdk -> stellar-xdr (serde) -> serde_with, i.e. host-side proc-macros
+and test snapshots; it is not compiled into contract wasm and no code here
+parses RFC 2822. Every patched release (>= 0.3.47) requires Rust 1.88, but
+rust-toolchain.toml pins 1.85.0. Remove when the toolchain is bumped and
+`cargo update -p time` lands.
+"""
+expires = "2026-12-31"
+
+
+[[exceptions]]
+
+id = "clippy::unwrap_used"
+path = "contracts/payments-contract/src/lib.rs"
+severity = "high"
+rationale = """
+Pre-existing (found when the audit job was first wired into CI). The batch
+payout entry point unwraps require_admin() and multi_transfer_all(); a failure
+aborts the whole invocation so no partial transfer is committed, but callers
+get a panic instead of a typed Error. Tracked for conversion to Result.
+"""
+expires = "2026-12-31"
+
+
+[[exceptions]]
+
+id = "clippy::expect_used"
+path = "contracts/payments-contract/src/lib.rs"
+severity = "high"
+rationale = """
+Pre-existing. expect() on the token key written by initialize(); an
+uninitialized contract aborts instead of transferring an unset token.
+Tracked for conversion to Result.
+"""
+expires = "2026-12-31"
+
+
+[[exceptions]]
+
+id = "clippy::expect_used"
+path = "contracts/access-control/src/lib.rs"
+severity = "high"
+rationale = """
+Pre-existing. expect() on the SuperAdmin key written by initialize(); reading
+it before initialization aborts rather than returning a bogus admin.
+Tracked for conversion to Result.
+"""
+expires = "2026-12-31"
+
+
+[[exceptions]]
+
+id = "clippy::expect_used"
+path = "contracts/nft-marketplace/src/lib.rs"
+severity = "high"
+rationale = """
+Pre-existing. expect() on the fee-recipient key written by initialize(), in
+the getter and each settlement path; an unset recipient aborts the sale
+instead of routing platform fees to an unset address. Tracked for conversion
+to Result.
+"""
+expires = "2026-12-31"
+
+
+[[exceptions]]
+
+id = "clippy::unwrap_used"
+path = "contracts/governance-contract/src/lib.rs"
+severity = "high"
+rationale = """
+Pre-existing. admin_set.get(i).unwrap() inside `while i < admin_set.len()`;
+the index is always in bounds, so the panic branch is unreachable.
+"""
+expires = "2026-12-31"
+
+
+[[exceptions]]
+
+id = "clippy::unwrap_used"
+path = "contracts/aid-contract/src/lib.rs"
+severity = "high"
+rationale = """
+Pre-existing. ids.get(index).unwrap() inside `while index < total` where
+total = ids.len(); the index is always in bounds. The function is currently
+#[allow(dead_code)].
+"""
+expires = "2026-12-31"

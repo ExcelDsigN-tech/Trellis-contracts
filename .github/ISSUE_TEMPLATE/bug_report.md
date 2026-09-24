@@ -1,40 +1,43 @@
 ---
-name: Bug report
-about: Report incorrect contract behaviour (security issues go to SECURITY.md, not here)
-title: "[Bug] "
-labels: bug
-assignees: ""
+name: Bug Report
+about: Report a bug to help us improve
+labels: bug, needs-triage
+title: "[Bug]: "
 ---
+
+## Bug Report
 
 > **Security vulnerability?** Do not file it here. Follow [SECURITY.md](../../SECURITY.md) to report it privately.
 
-## Affected crate
+### Describe the Bug
+A clear and concise description of what the bug is.
 
-<!-- e.g. aid-contract, treasury-contract, payments-contract, shared -->
+### Affected Crate
+e.g. `aid-contract`, `treasury-contract`, `payments-contract`, `shared`
 
-## Environment
+### Steps to Reproduce
+Steps to reproduce the behavior:
+1. Deploy / invoke '...'
+2. Call '....' with arguments '....'
+3. See error
 
-- **Network:** <!-- testnet / futurenet / local (soroban-cli sandbox) -->
-- **Contract ID:** <!-- C... (if deployed) -->
-- **Transaction hash:** <!-- if reproduced on-chain -->
-- **Commit:** <!-- git rev-parse HEAD -->
+A failing `cargo test` case is the most useful reproduction.
 
-## Description
+### Expected Behavior
+A clear and concise description of what you expected to happen.
 
-<!-- What went wrong? -->
+### Actual Behavior
+What actually happened. Include the error code, panic message and emitted events if applicable.
 
-## Steps to reproduce
+### Environment
+ - Network: [testnet / futurenet / local sandbox]
+ - Contract ID: [e.g. C...]
+ - Transaction hash: [if reproduced on-chain]
+ - Commit: [output of `git rev-parse HEAD`]
+ - Rust / stellar-cli version: [e.g. 1.89.0 / 23.0.0]
 
-1.
-2.
-3.
-
-<!-- A failing `cargo test` case is the most useful reproduction. -->
-
-## Expected behaviour
-
-## Actual behaviour
-
-<!-- Include the error code / panic message / emitted events. -->
-
-## Additional context
+### Additional Context
+Add any other context about the problem here. This could include:
+- Relevant logs
+- What you were trying to achieve
+- Any workarounds you've found
