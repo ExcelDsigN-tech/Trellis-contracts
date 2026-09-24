@@ -5,6 +5,9 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
+  # Weekly re-scan so advisories published after merge still surface.
+  schedule:
+    - cron: "0 6 * * 1"
 
 env:
   CARGO_TERM_COLOR: always
@@ -97,14 +100,25 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
 
-  test:
-    name: Test
+  # Security audit: cargo audit + clippy security preset (see security/README.md).
+  # BLOCKING: any high-severity finding (every RustSec vulnerability, panic-family
+  # lints) without a valid entry in security/audit-allowlist.toml fails the job.
+  # Unmaintained/yanked-crate warnings and medium lints are reported, not gated.
+  audit:
+    name: Security audit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
 
       - name: Cache cargo
         uses: actions/cache@v4
@@ -116,5 +130,13 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
 
-      - name: Run tests
-        run: cargo test --workspace
+      - name: Run security audit
+        run: ./scripts/security/run-audit.sh --skip-wasm --allowlist security/audit-allowlist.toml --report security-report.md
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-audit-report
+          path: security-report.md
+          if-no-files-found: ignore

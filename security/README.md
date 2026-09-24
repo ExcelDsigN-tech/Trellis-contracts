@@ -8,7 +8,7 @@ tooling required to run repeatable security checks over it.
 
 | Check | Tool | Severity mapping |
 |---|---|---|
-| Known vulnerabilities in dependencies (RustSec advisories) | `cargo audit` | `CRITICAL`/`HIGH` -> high, `MEDIUM` -> medium, rest -> low |
+| Known vulnerabilities in dependencies (RustSec advisories) | `cargo audit` | every vulnerability -> high (RustSec has no severity field); unmaintained/yanked warnings -> medium |
 | Security lint preset on all contract libs | `cargo clippy` (see preset below) | panic-family lints -> high, others -> medium |
 | Wasm size inventory per contract (gas-cost proxy) | `cargo build --target wasm32v1-none --release` | informational |
 
@@ -49,8 +49,8 @@ Markdown SAR (Security Audit Report).
 
 ## CI
 
-`.github/workflows/security-audit.yml` runs the same script on every push to
-main and every pull request, installs `cargo-audit`, and fails when a
+The `audit` job in `.github/workflows/ci.yml` runs the same script on every push,
+every pull request and weekly (Monday 06:00 UTC), installs `cargo-audit`, and fails when a
 high-severity finding has no valid allowlist entry.
 
 ## Allowlisting a finding
