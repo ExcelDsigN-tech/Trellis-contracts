@@ -1,6 +1,6 @@
 ## Description
 
-Please include a summary of the changes and the related issue. Please also include relevant motivation and context.
+Please include a summary of the changes and the related issue. Please also include relevant motivation and context. See [CONTRIBUTING.md](../CONTRIBUTING.md) before opening a PR.
 
 Fixes #(issue number)
 
