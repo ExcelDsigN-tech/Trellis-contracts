@@ -3,7 +3,6 @@
 pub mod auth;
 pub mod batch;
 pub mod errors;
-pub mod event;
 pub mod events;
 pub mod math;
 pub mod payments;
